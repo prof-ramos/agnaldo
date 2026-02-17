@@ -20,6 +20,7 @@ from loguru import logger
 
 from src.config.settings import get_settings
 from src.database.supabase import get_supabase_client
+from src.discord.handlers import get_message_handler
 from src.discord.bot import create_bot
 from src.utils.logger import setup_logging
 
@@ -50,11 +51,12 @@ class GracefulShutdown:
         return self.shutdown
 
 
-async def initialize_database() -> bool:
+async def initialize_database() -> tuple[bool, Any]:
     """Initialize database connections and verify health.
 
     Returns:
         True if database initialization successful, False otherwise.
+        db_pool: Database pool for async queries.
     """
     try:
         logger.info("Initializing database connections...")
@@ -63,20 +65,28 @@ async def initialize_database() -> bool:
         supabase = get_supabase_client()
         logger.info(f"Supabase client initialized: {supabase.url[:30]}...")
 
-        # Test database connection with a simple query
-        # Note: This would require asyncpg pool for async queries
-        # For now, we'll just log the connection
+        # Initialize asyncpg pool for async queries
+        from asyncpg import create_pool
+        from src.config.settings import get_settings
+        
+        settings = get_settings()
+        db_pool = await create_pool(
+            settings.SUPABASE_DB_URL,
+            min_size=5,
+            max_size=20,
+        )
 
-        logger.info("Database connections verified")
-        return True
+        logger.info("AsyncPG pool initialized successfully")
+        logger.info(f"Database connections verified")
+        return True, db_pool
 
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
-        return False
+        return False, None
 
 
-async def create_soul_personality() -> str:
-    """Load or create the bot personality (SOUL.md equivalent).
+def create_soul_personality() -> str:
+    """Load or create bot personality (SOUL.md equivalent).
 
     Returns:
         The personality instructions as a string.
@@ -159,37 +169,45 @@ async def main() -> int:
         logger.error(f"Failed to load configuration: {e}")
         return 1
 
-    # Step 2: Initialize database
-    try:
-        db_ready = await initialize_database()
-        if not db_ready:
-            logger.error("Database initialization failed, aborting startup")
-            return 1
+        # Step 2: Initialize database
+        try:
+            db_ready, db_pool = await initialize_database()
+            if not db_ready:
+                logger.error("Database initialization failed, aborting startup")
+                return 1
+
+            # Step 2.5: Configure bot instance
+            try:
+                logger.info("Configuring bot instance...")
+                bot = await create_bot(db_pool)
+                
+                logger.info("Bot instance configured successfully")
+
+            except Exception as e:
+                logger.error(f"Failed to configure bot instance: {e}")
+                return 1
     except Exception as e:
         logger.error(f"Database initialization error: {e}")
         return 1
 
-    # Step 3: Create bot instance
-    try:
-        logger.info("Creating Agnaldo bot instance...")
-        personality = await create_soul_personality()
-        logger.info(f"Loaded personality ({len(personality)} chars)")
+        # Step 3: Configure bot instance
+        try:
+            logger.info("Configuring bot instance...")
+            bot = await create_bot(db_pool)
+            
+            logger.info("Bot instance configured successfully")
 
-        bot = create_bot()
-
-        # Store personality in bot for later use
-        bot.personality = personality  # type: ignore[attr-defined]
-        # Note: settings is already set in Bot.__init__
-
-        logger.info("Bot instance created successfully")
+        except Exception as e:
+            logger.error(f"Failed to configure bot instance: {e}")
+            return 1
 
     except Exception as e:
         logger.error(f"Failed to create bot instance: {e}")
         return 1
 
-    # Step 4 & 5: Start bot with graceful shutdown
-    try:
-        logger.info("Starting bot connection to Discord...")
+        # Step 4.5: Configure and start bot
+        try:
+            logger.info("Starting bot connection to Discord...")
 
         # Run bot in a task that can be cancelled
         bot_task = asyncio.create_task(bot.start(settings.DISCORD_BOT_TOKEN))
@@ -211,15 +229,6 @@ async def main() -> int:
             # Close bot connection
             await bot.close()
             logger.info("Bot connection closed gracefully")
-
-        elif bot_task.done():
-            # Bot exited on its own
-            try:
-                result = bot_task.result()
-                logger.info(f"Bot task completed with result: {result}")
-            except Exception as e:
-                logger.error(f"Bot task failed: {e}")
-                return 1
 
         logger.info("Agnaldo Discord Bot - Shutdown complete")
         return 0

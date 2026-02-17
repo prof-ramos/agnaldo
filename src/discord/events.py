@@ -35,7 +35,9 @@ async def _send_context_message(ctx: Any, message: str) -> None:
                 await interaction.followup.send(message, ephemeral=True)
             return
         except Exception:
-            logger.debug("Failed to send interaction ephemeral response, falling back to regular send")
+            logger.debug(
+                "Failed to send interaction ephemeral response, falling back to regular send"
+            )
 
     await ctx.send(message)
 
@@ -68,14 +70,23 @@ def setup_events(bot: Bot) -> None:
         # Process commands first
         await bot.process_commands(message)
 
+        # Process natural messages through agent handler
+        if message_handler := bot.message_handler:
+            try:
+                response = await message_handler.process_message(message)
+                if response:
+                    await message.channel.send(response)
+            except Exception as e:
+                logger.error(f"Error in message handler: {e}")
+                await message.channel.send(f"Ocorreu um erro ao processar sua mensagem.")
+
         # Log message for monitoring (in dev mode only)
         if bot.settings.is_dev:
             preview = sanitize_message_preview(message.content)
             author_id = getattr(message.author, "id", None)
             channel_id = getattr(message.channel, "id", None)
             logger.debug(
-                f"Message metadata author_id={author_id} "
-                f"channel_id={channel_id} preview={preview}"
+                f"Message metadata author_id={author_id} channel_id={channel_id} preview={preview}"
             )
 
     @bot.event
@@ -108,9 +119,7 @@ def setup_events(bot: Bot) -> None:
         }
 
         error_type = type(error).__name__
-        message = error_messages.get(
-            error_type, f"An error occurred while executing the command."
-        )
+        message = error_messages.get(error_type, f"An error occurred while executing the command.")
 
         try:
             await _send_context_message(ctx, message)

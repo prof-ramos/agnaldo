@@ -79,3 +79,11 @@ disallow_untyped_defs = false
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "unit: Unit tests (fast, isolated)",
+    "integration: Integration tests (slower, external deps)",
+    "e2e: End-to-end tests (slowest, full stack)",
+    "database: Tests requiring database",
+    "discord: Tests requiring Discord API mocks",
+    "openai: Tests requiring OpenAI API mocks",
+]

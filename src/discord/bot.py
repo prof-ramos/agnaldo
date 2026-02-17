@@ -63,6 +63,55 @@ class AgnaldoBot(Bot):
         """Get the bot's rate limiter instance."""
         return self.rate_limiter
 
+    async def process_message(self, message: Message) -> str | None:
+        """Process a message through Agno agents.
+
+        Args:
+            message: Discord message to process.
+
+        Returns:
+            Agent response or None if message should be ignored.
+        """
+        # Ignore messages from bots
+        if message.author.bot:
+            return None
+
+        # Ignore empty messages
+        if not message.content or not message.content.strip():
+            return None
+
+        # Get user ID for memory isolation
+        user_id = str(message.author.id)
+
+        # Build context for agent
+        context = {
+            "username": message.author.display_name,
+            "global_name": message.author.global_name,
+            "channel_id": str(message.channel.id),
+            "guild_id": str(message.guild.id) if message.guild else None,
+            "guild_name": message.guild.name if message.guild else "DM",
+            "is_dm": message.guild is None,
+        }
+
+        try:
+            # Ensure message handler is initialized
+            if self.message_handler is None:
+                logger.warning("Message handler not initialized, skipping message processing")
+                return "Desculpe, o sistema está configurando..."
+
+            # Process message through handler
+            response = await self.message_handler.process_message(message, context)
+
+            return response
+
+        except Exception as e:
+            logger.error(f"Error processing message: {e}")
+            return f"Ocorreu um erro ao processar sua mensagem: {e}"
+
+    def set_message_handler(self, message_handler) -> None:
+        """Set the message handler for agent processing."""
+        self.message_handler = message_handler
+
 
 def create_bot() -> AgnaldoBot:
     """

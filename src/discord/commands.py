@@ -68,13 +68,15 @@ More commands coming soon!
         rate_limiter = bot.get_rate_limiter()
         await rate_limiter.acquire(channel_id=str(interaction.channel_id))
 
-        tokens_info = rate_limiter.get_available_tokens(
-            channel_id=str(interaction.channel_id)
-        )
+        tokens_info = rate_limiter.get_available_tokens(channel_id=str(interaction.channel_id))
         global_tokens = tokens_info.get("global_tokens")
         channel_tokens = tokens_info.get("channel_tokens")
-        global_text = f"{float(global_tokens):.1f}" if isinstance(global_tokens, (int, float)) else "N/A"
-        channel_text = f"{float(channel_tokens):.1f}" if isinstance(channel_tokens, (int, float)) else "N/A"
+        global_text = (
+            f"{float(global_tokens):.1f}" if isinstance(global_tokens, (int, float)) else "N/A"
+        )
+        channel_text = (
+            f"{float(channel_tokens):.1f}" if isinstance(channel_tokens, (int, float)) else "N/A"
+        )
 
         status_text = f"""
 **Agnaldo Bot Status**
@@ -115,9 +117,7 @@ Channel tokens available: {channel_text}
             logger.info(f"Commands synced by {interaction.user}")
         except Exception as e:
             logger.error(f"Failed to sync commands: {e}")
-            await interaction.response.send_message(
-                f"Failed to sync commands: {e}", ephemeral=True
-            )
+            await interaction.response.send_message(f"Failed to sync commands: {e}", ephemeral=True)
 
     # ================================================================
     # Memory Commands
@@ -128,10 +128,147 @@ Channel tokens available: {channel_text}
         description="Memory management commands",
     )
 
-    @memory_group.command(
-        name="add",
-        description="Store an important fact in core memory"
+    @memory_group.command(name="add", description="Store an important fact in core memory")
+    @app_commands.describe(
+        key="Unique key for memory (e.g., 'preference-language')",
+        value="The value/content to store",
+        importance="Importance score from 0.0 to 1.0 (default: 0.5)",
     )
+    async def memory_add(
+        interaction,
+        key: str,
+        value: str,
+        importance: float = 0.5,
+    ) -> None:
+        """Store a fact in core memory."""
+        # Apply rate limiting
+        rate_limiter = bot.get_rate_limiter()
+        await rate_limiter.acquire(channel_id=str(interaction.channel_id))
+
+        # Validate importance
+        if not 0.0 <= importance <= 1.0:
+            await interaction.response.send_message(
+                "Importance must be between 0.0 and 1.0", ephemeral=True
+            )
+            return
+
+        try:
+            # Get database pool from bot
+            db_pool = getattr(bot, "db_pool", None)
+            if not db_pool:
+                await interaction.response.send_message("Database not available", ephemeral=True)
+                return
+
+            user_id = str(interaction.user.id)
+            core_memory = CoreMemory(user_id, db_pool)
+
+            await core_memory.add(key, value, importance=importance)
+
+            await interaction.response.send_message(
+                f"✅ Stored: `{key}` = `{value}` (importance: {importance})",
+                ephemeral=True,
+            )
+            logger.info(f"Memory added by {interaction.user}: {key}={value}")
+
+        except Exception as e:
+            logger.error(f"Memory add error: {e}")
+            await interaction.response.response.send_message(
+                f"Failed to store memory: {e}", ephemeral=True
+            )
+
+    @memory_group.command(name="recall", description="Search your memories by semantic similarity")
+    @app_commands.describe(
+        query="What to search for in your memories",
+        limit="Maximum number of results (default: 5)",
+    )
+    async def memory_recall(
+        interaction,
+        query: str,
+        limit: int = 5,
+    ) -> None:
+        """Search memories semantically."""
+        # Apply rate limiting
+        rate_limiter = bot.get_rate_limiter()
+        await rate_limiter.acquire(channel_id=str(interaction.channel_id))
+
+        try:
+            db_pool = getattr(bot, "db_pool", None)
+            if not db_pool:
+                await interaction.response.send_message("Database not available", ephemeral=True)
+                return
+
+            user_id = str(interaction.user.id)
+            recall_memory = RecallMemory(user_id, db_pool)
+
+            results = await recall_memory.search(query, limit=limit, threshold=0.5)
+
+            if not results:
+                await interaction.response.send_message(
+                    f"🔍 No memories found for: `{query}`", ephemeral=True
+                )
+                return
+
+            # Format results
+            response_parts = [f"🔍 Found {len(results)} memories for: `{query}`\n"]
+            for i, r in enumerate(results[:10], 1):
+                similarity_pct = int(r["similarity"] * 100)
+                preview = _preview_with_ellipsis(r["content"], 100)
+                response_parts.append(f"**{i}.** {preview} (similarity: {similarity_pct}%)")
+
+            await interaction.response.send_message("\n".join(response_parts), ephemeral=True)
+            logger.info(f"Memory recall by {interaction.user}: {query} ({len(results)} results)")
+
+        except Exception as e:
+            logger.error(f"Memory recall error: {e}")
+            await interaction.response.send_message(
+                f"Failed to search memories: {e}", ephemeral=True
+            )
+
+    # ================================================================
+    # Chat Commands (NEW - Natural conversation)
+    # ================================================================
+
+    @bot.tree.command(name="chat", description="Chat naturalmente com o Agno")
+    async def chat_command(interaction) -> None:
+        """Process natural language message through Agno agents."""
+        # Apply rate limiting
+        rate_limiter = bot.get_rate_limiter()
+        await rate_limiter.acquire(channel_id=str(interaction.channel_id))
+
+        try:
+            # Get message handler if available
+            message_handler = getattr(bot, "message_handler", None)
+            if not message_handler:
+                await interaction.response.send_message(
+                    "Sistema de agentes ainda está configurando. Tente novamente em alguns segundos.",
+                    ephemeral=True,
+                )
+                return
+
+            # Process message through agent handler
+            response = await message_handler.process_message(interaction.message)
+
+            # Send response or handle error
+            if response:
+                await interaction.response.send_message(response, ephemeral=True)
+            else:
+                await interaction.response.send_message(
+                    "Não consegui entender sua mensagem. Tente ser mais específico.",
+                    ephemeral=True,
+                )
+
+        except Exception as e:
+            logger.error(f"Chat command error: {e}")
+            await interaction.response.send_message(
+                f"Ocorreu um erro no comando chat: {e}",
+                ephemeral=True,
+            )
+
+    # ================================================================
+    # Knowledge Graph Commands
+    # ================================================================
+
+    @memory_group.command(name="add", description="Store an important fact in core memory")
     @app_commands.describe(
         key="Unique key for the memory (e.g., 'preference-language')",
         value="The value/content to store",
@@ -159,9 +296,7 @@ Channel tokens available: {channel_text}
             # Get database pool from bot
             db_pool = getattr(bot, "db_pool", None)
             if not db_pool:
-                await interaction.response.send_message(
-                    "Database not available", ephemeral=True
-                )
+                await interaction.response.send_message("Database not available", ephemeral=True)
                 return
 
             user_id = str(interaction.user.id)
@@ -177,14 +312,9 @@ Channel tokens available: {channel_text}
 
         except Exception as e:
             logger.error(f"Memory add error: {e}")
-            await interaction.response.send_message(
-                f"Failed to store memory: {e}", ephemeral=True
-            )
+            await interaction.response.send_message(f"Failed to store memory: {e}", ephemeral=True)
 
-    @memory_group.command(
-        name="recall",
-        description="Search your memories by semantic similarity"
-    )
+    @memory_group.command(name="recall", description="Search your memories by semantic similarity")
     @app_commands.describe(
         query="What to search for in your memories",
         limit="Maximum number of results (default: 5)",
@@ -202,9 +332,7 @@ Channel tokens available: {channel_text}
         try:
             db_pool = getattr(bot, "db_pool", None)
             if not db_pool:
-                await interaction.response.send_message(
-                    "Database not available", ephemeral=True
-                )
+                await interaction.response.send_message("Database not available", ephemeral=True)
                 return
 
             user_id = str(interaction.user.id)
@@ -223,13 +351,9 @@ Channel tokens available: {channel_text}
             for i, r in enumerate(results[:10], 1):
                 similarity_pct = int(r["similarity"] * 100)
                 preview = _preview_with_ellipsis(r["content"], 100)
-                response_parts.append(
-                    f"**{i}.** {preview} (similarity: {similarity_pct}%)"
-                )
+                response_parts.append(f"**{i}.** {preview} (similarity: {similarity_pct}%)")
 
-            await interaction.response.send_message(
-                "\n".join(response_parts), ephemeral=True
-            )
+            await interaction.response.send_message("\n".join(response_parts), ephemeral=True)
             logger.info(f"Memory recall by {interaction.user}: {query} ({len(results)} results)")
 
         except Exception as e:
@@ -247,10 +371,7 @@ Channel tokens available: {channel_text}
         description="Knowledge graph commands",
     )
 
-    @graph_group.command(
-        name="add_node",
-        description="Add a node to the knowledge graph"
-    )
+    @graph_group.command(name="add_node", description="Add a node to the knowledge graph")
     @app_commands.describe(
         label="Node label/name (e.g., 'Python', 'Discord API')",
         node_type="Type/category (optional, e.g., 'language', 'API', 'concept')",
@@ -268,9 +389,7 @@ Channel tokens available: {channel_text}
         try:
             db_pool = getattr(bot, "db_pool", None)
             if not db_pool:
-                await interaction.response.send_message(
-                    "Database not available", ephemeral=True
-                )
+                await interaction.response.send_message("Database not available", ephemeral=True)
                 return
 
             user_id = str(interaction.user.id)
@@ -286,14 +405,9 @@ Channel tokens available: {channel_text}
 
         except Exception as e:
             logger.error(f"Graph add_node error: {e}")
-            await interaction.response.send_message(
-                f"Failed to add node: {e}", ephemeral=True
-            )
+            await interaction.response.send_message(f"Failed to add node: {e}", ephemeral=True)
 
-    @graph_group.command(
-        name="add_edge",
-        description="Add a relationship between two concepts"
-    )
+    @graph_group.command(name="add_edge", description="Add a relationship between two concepts")
     @app_commands.describe(
         source="Source node label",
         target="Target node label",
@@ -315,9 +429,7 @@ Channel tokens available: {channel_text}
         try:
             db_pool = getattr(bot, "db_pool", None)
             if not db_pool:
-                await interaction.response.send_message(
-                    "Database not available", ephemeral=True
-                )
+                await interaction.response.send_message("Database not available", ephemeral=True)
                 return
 
             user_id = str(interaction.user.id)
@@ -350,14 +462,9 @@ Channel tokens available: {channel_text}
 
         except Exception as e:
             logger.error(f"Graph add_edge error: {e}")
-            await interaction.response.send_message(
-                f"Failed to add edge: {e}", ephemeral=True
-            )
+            await interaction.response.send_message(f"Failed to add edge: {e}", ephemeral=True)
 
-    @graph_group.command(
-        name="query",
-        description="Search the knowledge graph semantically"
-    )
+    @graph_group.command(name="query", description="Search the knowledge graph semantically")
     @app_commands.describe(
         query="What to search for",
         limit="Maximum results (default: 5)",
@@ -375,9 +482,7 @@ Channel tokens available: {channel_text}
         try:
             db_pool = getattr(bot, "db_pool", None)
             if not db_pool:
-                await interaction.response.send_message(
-                    "Database not available", ephemeral=True
-                )
+                await interaction.response.send_message("Database not available", ephemeral=True)
                 return
 
             user_id = str(interaction.user.id)
@@ -409,16 +514,12 @@ Channel tokens available: {channel_text}
                     neighbor_labels = [n.label for n in neighbors[:5]]
                     response_parts.append(f"   ↪ Connected to: {', '.join(neighbor_labels)}")
 
-            await interaction.response.send_message(
-                "\n".join(response_parts), ephemeral=True
-            )
+            await interaction.response.send_message("\n".join(response_parts), ephemeral=True)
             logger.info(f"Graph query by {interaction.user}: {query} ({len(results)} results)")
 
         except Exception as e:
             logger.error(f"Graph query error: {e}")
-            await interaction.response.send_message(
-                f"Failed to query graph: {e}", ephemeral=True
-            )
+            await interaction.response.send_message(f"Failed to query graph: {e}", ephemeral=True)
 
     try:
         bot.tree.add_command(memory_group)

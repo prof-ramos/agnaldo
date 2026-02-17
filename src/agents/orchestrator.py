@@ -248,6 +248,9 @@ class AgentOrchestrator:
 
     Manages agent lifecycle, message routing, memory integration,
     and coordination between different agent types.
+
+    Attributes:
+        pending_approvals: Dict of pending human-in-the-loop approvals.
     """
 
     def __init__(
@@ -284,6 +287,10 @@ class AgentOrchestrator:
         self.state = AgentState.STARTING
         self.started_at: datetime | None = None
 
+        # Human-in-the-loop
+        self.pending_approvals: dict[str, dict[str, Any]] = {}
+        self.approval_timeout_seconds = 300
+
         logger.info("AgentOrchestrator initialized")
 
     async def initialize(self) -> None:
@@ -306,7 +313,6 @@ class AgentOrchestrator:
 
     async def _create_agents(self) -> None:
         """Create all agent instances."""
-
         # Base instructions from personality
         base_instructions = list(self.personality_instructions)
 
@@ -320,7 +326,7 @@ class AgentOrchestrator:
                 *base_instructions,
                 "Você é o agente conversacional principal do Agnaldo.",
                 "Responda de forma natural, amigável e útil.",
-                "Mantenha as respostas concisas e diretas.",
+                "Mantenha respostas concisas e diretas.",
             ],
             openai_client=self.openai,
             model=self.model,
@@ -386,6 +392,26 @@ class AgentOrchestrator:
         self.agents[graph.agent_id] = graph
         self.agent_by_type[AgentType.GRAPH].append(graph.agent_id)
 
+        # Core Memory Agent (NEW!)
+        core_memory = AgnoAgent(
+            agent_id="agent_core_memory",
+            agent_type=AgentType.MEMORY,
+            name="Core Memory",
+            description="Gerencia memória core rápida e de alto valor",
+            instructions=[
+                *base_instructions,
+                "Você é o agente de memória core do Agnaldo.",
+                "Armazene informações críticas e de acesso rápido.",
+                "Máximo 100 itens com scoring de importância.",
+                "Use cache LRU ponderado para eviction.",
+                "Prioriza fatos mais recentes por importância.",
+            ],
+            openai_client=self.openai,
+            model=self.model,
+        )
+        self.agents[core_memory.agent_id] = core_memory
+        self.agent_by_type[AgentType.MEMORY].append(core_memory.agent_id)
+
         logger.info(f"Created {len(self.agents)} agents")
 
     async def _start_all_agents(self) -> None:
@@ -411,6 +437,7 @@ class AgentOrchestrator:
         context: dict[str, Any] | None = None,
         user_id: str | None = None,
         db_pool=None,
+        session_id: str | None = None,
     ) -> AsyncIterator[str]:
         """Route message to appropriate agent and stream response.
 
@@ -419,6 +446,7 @@ class AgentOrchestrator:
             context: Discord context (user, channel, guild).
             user_id: User ID for memory isolation.
             db_pool: Database pool for memory operations.
+            session_id: Session ID for conversation continuity (learning).
 
         Yields:
             Response chunks as they are generated.
@@ -430,11 +458,24 @@ class AgentOrchestrator:
                 target_agent="system",
             )
 
+        # Generate session_id if not provided (for learning continuity)
+        if not session_id and user_id:
+            import uuid
+
+            session_id = f"{user_id}_{uuid.uuid4().hex[:8]}"
+
+        logger.info(f"Processing message session_id={session_id} user_id={user_id}")
+
         # Classify intent
         intent_result = await self.intent_classifier.classify(message)
         logger.info(
-            f"Intent: {intent_result.intent.value} "
-            f"(confidence: {intent_result.confidence:.2f})"
+            f"Intent: {intent_result.intent.value} (confidence: {intent_result.confidence:.2f})"
+        )
+
+        # Classify intent
+        intent_result = await self.intent_classifier.classify(message)
+        logger.info(
+            f"Intent: {intent_result.intent.value} (confidence: {intent_result.confidence:.2f})"
         )
 
         # Determine which agent to use
@@ -443,9 +484,7 @@ class AgentOrchestrator:
         # Retrieve memory context if user_id and db_pool provided
         memory_context: dict[str, Any] | None = None
         if user_id and db_pool:
-            memory_context = await self._retrieve_memory_context(
-                user_id, message, db_pool
-            )
+            memory_context = await self._retrieve_memory_context(user_id, message, db_pool)
 
         # Get the agent
         agent = self.agents.get(agent_id)
@@ -461,14 +500,17 @@ class AgentOrchestrator:
         yield response
 
         # Store interaction in memory if applicable
-        if user_id and db_pool and intent_result.intent not in (
-            IntentCategory.GREETING,
-            IntentCategory.HELP,
-            IntentCategory.STATUS,
-        ):
-            await self._store_interaction(
-                user_id, message, response, intent_result, db_pool
+        if (
+            user_id
+            and db_pool
+            and intent_result.intent
+            not in (
+                IntentCategory.GREETING,
+                IntentCategory.HELP,
+                IntentCategory.STATUS,
             )
+        ):
+            await self._store_interaction(user_id, message, response, intent_result, db_pool)
 
     async def _route_to_agent(self, intent_result: IntentResult) -> str:
         """Route to the appropriate agent based on intent."""
@@ -509,9 +551,7 @@ class AgentOrchestrator:
 
         return selected_agent_id
 
-    async def _retrieve_memory_context(
-        self, user_id: str, query: str, db_pool
-    ) -> dict[str, Any]:
+    async def _retrieve_memory_context(self, user_id: str, query: str, db_pool) -> dict[str, Any]:
         """Retrieve memory context from all tiers."""
         context: dict[str, Any] = {}
 
@@ -521,8 +561,7 @@ class AgentOrchestrator:
             recall_results = await recall.search(query, limit=3, threshold=0.6)
             if recall_results:
                 context["recent"] = [
-                    {"content": r["content"], "similarity": r["similarity"]}
-                    for r in recall_results
+                    {"content": r["content"], "similarity": r["similarity"]} for r in recall_results
                 ]
 
             # Core memory could be added here
@@ -554,17 +593,101 @@ class AgentOrchestrator:
         except Exception as e:
             logger.warning(f"Failed to store interaction: {e}")
 
+    async def request_approval(
+        self,
+        action_id: str,
+        action_description: str,
+        user_id: str,
+        channel_id: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> str:
+        """Request human approval for a critical action.
+
+        Args:
+            action_id: Unique identifier for the action.
+            action_description: Human-readable description.
+            user_id: User who must approve.
+            channel_id: Discord channel for approval.
+            metadata: Additional context.
+
+        Returns:
+            Approval request ID.
+        """
+        import uuid
+        import time
+
+        request_id = f"approval_{uuid.uuid4().hex[:8]}"
+
+        self.pending_approvals[request_id] = {
+            "action_id": action_id,
+            "description": action_description,
+            "user_id": user_id,
+            "channel_id": channel_id,
+            "metadata": metadata or {},
+            "created_at": time.time(),
+            "status": "pending",
+        }
+
+        logger.info(f"Created approval request {request_id} for action {action_id}")
+        return request_id
+
+    async def check_approval(self, request_id: str) -> str:
+        """Check approval status.
+
+        Args:
+            request_id: Approval request ID.
+
+        Returns:
+            Status: 'pending', 'approved', 'denied', 'timeout'.
+        """
+        import time
+
+        approval = self.pending_approvals.get(request_id)
+        if not approval:
+            return "not_found"
+
+        if approval["status"] != "pending":
+            return approval["status"]
+
+        elapsed = time.time() - approval["created_at"]
+        if elapsed > self.approval_timeout_seconds:
+            approval["status"] = "timeout"
+            logger.warning(f"Approval request {request_id} timed out")
+            return "timeout"
+
+        return "pending"
+
+    async def approve_action(self, request_id: str, approved: bool) -> bool:
+        """Approve or deny a pending action.
+
+        Args:
+            request_id: Approval request ID.
+            approved: True to approve, False to deny.
+
+        Returns:
+            True if action was found and updated.
+        """
+        approval = self.pending_approvals.get(request_id)
+        if not approval:
+            return False
+
+        approval["status"] = "approved" if approved else "denied"
+        logger.info(f"Approval {request_id} {'approved' if approved else 'denied'}")
+        return True
+
     async def get_stats(self) -> dict[str, Any]:
         """Get orchestrator and agent statistics."""
         agent_stats = []
         for agent in self.agents.values():
-            agent_stats.append({
-                "id": agent.agent_id,
-                "name": agent.name,
-                "type": agent.agent_type.value,
-                "state": agent.state.value,
-                "metrics": agent.metrics.model_dump() if agent.metrics else None,
-            })
+            agent_stats.append(
+                {
+                    "id": agent.agent_id,
+                    "name": agent.name,
+                    "type": agent.agent_type.value,
+                    "state": agent.state.value,
+                    "metrics": agent.metrics.model_dump() if agent.metrics else None,
+                }
+            )
 
         return {
             "orchestrator_state": self.state.value,
