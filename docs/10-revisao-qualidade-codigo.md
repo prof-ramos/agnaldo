@@ -1,7 +1,7 @@
 # Revisão de Qualidade de Código — Agnaldo Discord Bot
 
 > **Data**: 2026-02-17
-> **Escopo**: Revisão completa do repositório `agnaldo/` (segurança, performance, arquitetura, testes)
+> **Escopo**: Revisão completa do repositório `agnaldo/` (segurança, desempenho, arquitetura, testes)
 > **Versão analisada**: `0.1.0` (commit `bc50396`)
 
 ---
@@ -12,7 +12,7 @@
 |-----------|---------|------|-------|-------|-------|
 | Segurança | 2 | 4 | 3 | 3 | 12 |
 | Qualidade de Código | — | 4 | 8 | 3 | 15 |
-| Performance | 1 | 3 | 7 | 3 | 14 |
+| Desempenho | 1 | 3 | 7 | 3 | 14 |
 | Testes | 1 | — | — | — | 1 |
 | **Total** | **4** | **11** | **18** | **9** | **42** |
 
@@ -37,9 +37,9 @@ O codebase demonstra **arquitetura sólida e boas práticas fundamentais** — q
 
 **Arquivos**: `src/main.py:64`, `src/database/supabase.py:61`
 
-A URL do projeto Supabase é logada durante o startup, expondo o ID do projeto mesmo com truncamento. Um atacante com acesso aos logs pode identificar a instância Supabase.
+A URL do projeto Supabase é registrada durante o startup, expondo o ID do projeto mesmo com truncamento. Um atacante com acesso aos logs pode identificar a instância Supabase.
 
-**Recomendação**: Remover URLs das mensagens de log. Logar apenas "Supabase client initialized" sem dados de conexão.
+**Recomendação**: Remover URLs das mensagens de log. Registrar apenas "Supabase client initialized" sem dados de conexão.
 
 #### CRITICAL — Construção de JSON path por interpolação
 
@@ -133,7 +133,7 @@ async def initialize_database() -> bool:
     return True
 ```
 
-**Impacto**: O bot inicia sem erros mas falha em qualquer operação de banco via asyncpg.
+**Impacto**: O bot inicia sem erros, mas falha em qualquer operação de banco via asyncpg.
 
 **Recomendação**: Criar pool asyncpg e atribuir a `bot.db_pool` durante o startup.
 
@@ -141,7 +141,7 @@ async def initialize_database() -> bool:
 
 **Arquivo**: `src/discord/events.py:62-79`
 
-O evento `on_message` está registrado mas **não invoca** o `MessageHandler.process_message()` definido em `src/discord/handlers.py`. O bot recebe mensagens mas não as processa pelo pipeline de IA.
+O evento `on_message` está registrado, mas **não invoca** o `MessageHandler.process_message()` definido em `src/discord/handlers.py`. O bot recebe mensagens, mas não as processa pelo pipeline de IA.
 
 **Impacto**: O bot não responde a mensagens conversacionais — apenas slash commands funcionam.
 
@@ -210,9 +210,9 @@ Usa `class Config:` (padrão Pydantic v1) ao invés de `model_config = ConfigDic
 #### MEDIUM — Imports não utilizados
 
 **Arquivos**:
-- `src/discord/commands.py` — `asyncio` importado mas não utilizado
-- `src/knowledge/graph.py` — `AsyncIterator` importado mas não utilizado
-- `src/memory/core.py` — `AsyncIterator` importado mas não utilizado
+- `src/discord/commands.py` — `asyncio` importado, mas não utilizado
+- `src/knowledge/graph.py` — `AsyncIterator` importado, mas não utilizado
+- `src/memory/core.py` — `AsyncIterator` importado, mas não utilizado
 
 #### MEDIUM — ContextManager com muitas responsabilidades
 
@@ -240,7 +240,7 @@ O arquivo `analisecoderabbit_debug.md` (238 KB) parece ser output de debug/anál
 
 ---
 
-## 3. Análise de Performance
+## 3. Análise de Desempenho
 
 ### 3.1 Pontos Fortes
 
@@ -367,8 +367,8 @@ O modelo `all-MiniLM-L6-v2` (~90 MB) é carregado na memória durante a primeira
 | Memória | `core.py`, `recall.py`, `archival.py` | core (~20%), archival (~15%) | recall = **0%** |
 | Knowledge Graph | `graph.py` | ~30% | Parcial |
 | Agentes | `orchestrator.py` | — | **0%** |
-| Intent | `classifier.py`, `models.py`, `router.py` | — | **0%** |
-| Contexto | `manager.py`, `reducer.py`, `offloading.py`, `monitor.py` | — | **0%** |
+| Intent | `classifier.py`, `models.py`, `roteador.py` | — | **0%** |
+| Contexto | `gestor.py`, `reducer.py`, `offloading.py`, `monitor.py` | — | **0%** |
 | Discord | `bot.py`, `commands.py`, `events.py`, `handlers.py`, `rate_limiter.py` | — | **0%** |
 | Database | `models.py`, `supabase.py`, `rls_policies.py` | — | **0%** |
 | Config/Utils | `settings.py`, `logger.py`, `error_handlers.py`, `exceptions.py` | — | **0%** |
@@ -379,7 +379,7 @@ O modelo `all-MiniLM-L6-v2` (~90 MB) é carregado na memória durante a primeira
 1. **Helper `_build_mock_pool()` duplicado** em `test_memory.py` e `test_graph.py` — deveria estar em `tests/fixtures/conftest.py`
 2. **Sem testes de edge cases**: inputs vazios, valores inválidos, concorrência
 3. **Sem testes negativos**: validação de erros, SQL injection, timeouts
-4. **Diretórios vazios**: `test_agents/`, `test_context/`, `test_intent/`, `fixtures/` existem mas não contêm testes
+4. **Diretórios vazios**: `test_agents/`, `test_context/`, `test_intent/`, `fixtures/` existem, mas não contêm testes
 5. **Sem testes de integração real**: todos os testes usam mocks, nenhum testa contra banco real
 
 ### 4.4 Prioridade de Testes a Implementar
@@ -410,7 +410,7 @@ A arquitetura é **bem concebida** para o problema proposto:
 
 - **Integração incompleta**: Componentes individuais estão bem escritos, mas a integração entre eles está faltando (pool asyncpg, event handlers)
 - **Sem CI/CD**: Nenhuma pipeline configurada para testes automatizados ou deploy
-- **Falta observabilidade end-to-end**: OpenTelemetry está como dependência mas não configurado
+- **Falta observabilidade end-to-end**: OpenTelemetry está como dependência, mas não configurado
 
 ---
 
@@ -433,13 +433,13 @@ A arquitetura é **bem concebida** para o problema proposto:
 | 6 | Inputs sem validação | `commands.py` | Adicionar limites de comprimento |
 | 7 | API key em exceções | `recall.py` | Sanitizar mensagens de erro |
 
-### P2 — Performance (impacto na experiência do usuário)
+### P2 — Desempenho (impacto na experiência do usuário)
 
 | # | Problema | Arquivo | Ação |
 |---|----------|---------|------|
 | 8 | Sem cache de embeddings | `recall.py`, `graph.py` | Cache com `async_lru` e TTL |
 | 9 | Background tasks ilimitadas | `core.py` | Semáforo com max 10 concurrent |
-| 10 | Sessões sem cleanup | `manager.py` | TTL de 30 min com cleanup periódico |
+| 10 | Sessões sem cleanup | `gestor.py` | TTL de 30 min com cleanup periódico |
 | 11 | Índices compostos ausentes | `models.py` | Criar índices para queries frequentes |
 
 ### P3 — Qualidade de Código (melhoria contínua)
@@ -464,9 +464,9 @@ Após resolver P0 e P1, o projeto estará pronto para testes em ambiente de stag
 | Aspecto | Nota | Comentário |
 |---------|------|------------|
 | Arquitetura | A | Bem pensada, padrões modernos |
-| Segurança | B- | Boas práticas mas com lacunas |
-| Qualidade de Código | B | Sólido mas com débitos técnicos |
-| Performance | C+ | Bom design mas problemas de integração |
+| Segurança | B- | Boas práticas, mas com lacunas |
+| Qualidade de Código | B | Sólido, mas com débitos técnicos |
+| Desempenho | C+ | Bom design, mas problemas de integração |
 | Testes | D | Cobertura crítica (~5-10%) |
 | Documentação | A- | Completa em PT-BR, 9 guias |
 | **Geral** | **B-** | **Pronto para staging após P0/P1** |

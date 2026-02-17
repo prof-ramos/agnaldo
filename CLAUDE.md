@@ -15,7 +15,7 @@
 
 ## Estrutura do Repositório
 
-```
+```text
 agnaldo/
 ├── src/                           # Código-fonte principal
 │   ├── main.py                    # Ponto de entrada (startup + graceful shutdown)
@@ -260,7 +260,7 @@ Roteamento baseado em intent classification via sentence-transformers.
 ## Problemas Conhecidos e Áreas Incompletas
 
 1. **Pool asyncpg não inicializado**: `bot.db_pool` não é configurado em `src/main.py` — afeta comandos de memória
-2. **Handler desconectado**: `on_message` existe em `handlers.py` mas NÃO está conectado em `events.py`
+2. **Handler desconectado**: `on_message` existe em `handlers.py`, mas NÃO está conectado em `events.py`
 3. **Divergência de schemas**: Diferenças entre `001_initial.py` (Alembic) e `001_create_memory_tables.sql` (SQL direto) — necessário alinhar
 4. **Ferramentas OSINT**: `src/tools/osint/` é apenas um placeholder
 5. **Operações de grafo**: Não completamente conectadas aos slash commands do Discord

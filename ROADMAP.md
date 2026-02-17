@@ -43,7 +43,7 @@
 
 ---
 
-## Fase 2 — Performance e Estabilidade
+## Fase 2 — Desempenho e Estabilidade
 
 > **Prioridade**: Alta
 > **Meta**: Bot responsivo e estável sob carga
@@ -54,7 +54,7 @@
 - [ ] **Limitar background tasks** (`src/memory/core.py`)
   - Adicionar `asyncio.Semaphore(10)` em `_schedule_access_update()`
   - Ou implementar batch updates com intervalo de 5 segundos
-- [ ] **Cleanup de sessões inativas** (`src/context/manager.py`)
+- [ ] **Cleanup de sessões inativas** (`src/context/gestor.py`)
   - TTL de 30 minutos para sessões ociosas
   - Task periódica de limpeza (a cada 5 min)
 - [ ] **Criar índices compostos** (`src/database/models.py`)
