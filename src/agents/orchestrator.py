@@ -13,7 +13,7 @@ Inspired by OpenClaw techniques:
 import asyncio
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, AsyncIterator, Callable, Optional
+from typing import Any, AsyncIterator, Callable, Literal, Optional
 
 from loguru import logger
 from openai import AsyncOpenAI
@@ -23,6 +23,7 @@ from src.exceptions import AgentCommunicationError, DatabaseError
 from src.intent.classifier import IntentClassifier
 from src.intent.models import IntentCategory, IntentResult
 from src.memory.archival import ArchivalMemory
+from src.memory.core import CoreMemory
 from src.memory.recall import RecallMemory
 from src.schemas.agents import AgentMessage, AgentResponse, AgentMetrics, MessageType
 from src.schemas.memory import MemoryStats
@@ -472,12 +473,6 @@ class AgentOrchestrator:
             f"Intent: {intent_result.intent.value} (confidence: {intent_result.confidence:.2f})"
         )
 
-        # Classify intent
-        intent_result = await self.intent_classifier.classify(message)
-        logger.info(
-            f"Intent: {intent_result.intent.value} (confidence: {intent_result.confidence:.2f})"
-        )
-
         # Determine which agent to use
         agent_id = await self._route_to_agent(intent_result)
 
@@ -552,20 +547,28 @@ class AgentOrchestrator:
         return selected_agent_id
 
     async def _retrieve_memory_context(self, user_id: str, query: str, db_pool) -> dict[str, Any]:
-        """Retrieve memory context from all tiers."""
+        """Retrieve memory context from all tiers.
+
+        Integrates CoreMemory (fast key-value) with RecallMemory (semantic search)
+        to provide comprehensive context for agent responses.
+        """
         context: dict[str, Any] = {}
 
         try:
-            # Recall memory - semantic search
+            core = CoreMemory(user_id, db_pool)
+            core_memories = await core.get_all()
+            if core_memories:
+                context["core"] = [
+                    {"key": key, "value": value} for key, value in core_memories.items()
+                ]
+                logger.debug(f"Retrieved {len(core_memories)} core memories for context")
+
             recall = RecallMemory(user_id, db_pool)
             recall_results = await recall.search(query, limit=3, threshold=0.6)
             if recall_results:
                 context["recent"] = [
                     {"content": r["content"], "similarity": r["similarity"]} for r in recall_results
                 ]
-
-            # Core memory could be added here
-            # For now, we'll implement it in the next US (US-003)
 
         except Exception as e:
             logger.warning(f"Failed to retrieve memory context: {e}")
@@ -631,7 +634,9 @@ class AgentOrchestrator:
         logger.info(f"Created approval request {request_id} for action {action_id}")
         return request_id
 
-    async def check_approval(self, request_id: str) -> str:
+    async def check_approval(
+        self, request_id: str
+    ) -> Literal["pending", "approved", "denied", "timeout", "not_found"]:
         """Check approval status.
 
         Args:
@@ -641,13 +646,15 @@ class AgentOrchestrator:
             Status: 'pending', 'approved', 'denied', 'timeout'.
         """
         import time
+        from typing import cast
 
         approval = self.pending_approvals.get(request_id)
         if not approval:
             return "not_found"
 
-        if approval["status"] != "pending":
-            return approval["status"]
+        status = cast(Literal["pending", "approved", "denied"], approval["status"])
+        if status != "pending":
+            return status
 
         elapsed = time.time() - approval["created_at"]
         if elapsed > self.approval_timeout_seconds:
