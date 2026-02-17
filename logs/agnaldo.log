@@ -1,0 +1,19 @@
+2026-02-17 04:42:39 | INFO     | __main__:<module>:1 - Logger setup successful
+2026-02-17 04:42:39 | WARNING  | __main__:<module>:1 - Warning message
+2026-02-17 04:42:39 | ERROR    | __main__:<module>:1 - Error message
+2026-02-17 04:43:02 | WARNING  | logging:callHandlers:1737 - Standard logging warning
+2026-02-17 04:43:02 | ERROR    | logging:callHandlers:1737 - Standard logging error
+2026-02-17 04:43:02 | INFO     | __main__:<module>:12 - Loguru info message
+2026-02-17 04:43:02 | WARNING  | __main__:<module>:14 - Loguru warning message
+2026-02-17 04:43:19 | DEBUG    | __main__:<module>:16 - This is a debug message
+2026-02-17 04:43:19 | INFO     | __main__:<module>:17 - This is an info message
+2026-02-17 04:43:19 | WARNING  | __main__:<module>:18 - This is a warning message
+2026-02-17 04:43:19 | ERROR    | __main__:<module>:19 - This is an error message
+2026-02-17 04:43:19 | CRITICAL | __main__:<module>:20 - This is a critical message
+2026-02-17 04:43:19 | ERROR    | __main__:<module>:26 - Division by zero occurred
+Traceback (most recent call last):
+
+> File "<string>", line 24, in <module>
+
+ZeroDivisionError: division by zero
+2026-02-17 04:43:19 | INFO     | logging:callHandlers:1737 - Standard library logging also works!
