@@ -22,8 +22,7 @@ from src.config.settings import get_settings
 from src.exceptions import AgentCommunicationError, DatabaseError
 from src.intent.classifier import IntentClassifier
 from src.intent.models import IntentCategory, IntentResult
-from src.memory.archival import ArchivalMemory
-from src.memory.recall import RecallMemory
+from src.memory.manager import MemoryManager, MemoryContext
 from src.schemas.agents import AgentMessage, AgentResponse, AgentMetrics, MessageType
 from src.schemas.memory import MemoryStats
 
@@ -209,8 +208,17 @@ class AgnoAgent:
                 target_agent=self.agent_id,
             ) from e
 
-    def _build_system_prompt(self, memory_context: dict[str, Any] | None) -> str:
-        """Build the system prompt with instructions and memory."""
+    def _build_system_prompt(
+        self, memory_context: dict[str, Any] | MemoryContext | None
+    ) -> str:
+        """Build the system prompt with instructions and memory.
+
+        Args:
+            memory_context: Either a dict (legacy) or MemoryContext object.
+
+        Returns:
+            Formatted system prompt string.
+        """
         parts = []
 
         # Add instructions (SOUL.md personality)
@@ -219,11 +227,19 @@ class AgnoAgent:
 
         # Add memory context if available
         if memory_context:
-            parts.append("\n## Contexto de Memória")
-            if memory_context.get("core"):
-                parts.append(f"Fatos importantes: {memory_context['core']}")
-            if memory_context.get("recent"):
-                parts.append(f"Memórias recentes: {memory_context['recent'][:500]}...")
+            # Support both MemoryContext object and legacy dict format
+            if isinstance(memory_context, MemoryContext):
+                # Use new MemoryContext formatting
+                context_section = memory_context.to_prompt_section(max_tokens=1500)
+                if context_section:
+                    parts.append(context_section)
+            else:
+                # Legacy dict format (backward compatible)
+                parts.append("\n## Contexto de Memória")
+                if memory_context.get("core"):
+                    parts.append(f"Fatos importantes: {memory_context['core']}")
+                if memory_context.get("recent"):
+                    parts.append(f"Memórias recentes: {memory_context['recent'][:500]}...")
 
         return "\n\n".join(parts)
 
@@ -482,9 +498,11 @@ class AgentOrchestrator:
         agent_id = await self._route_to_agent(intent_result)
 
         # Retrieve memory context if user_id and db_pool provided
-        memory_context: dict[str, Any] | None = None
+        memory_context: MemoryContext | None = None
         if user_id and db_pool:
-            memory_context = await self._retrieve_memory_context(user_id, message, db_pool)
+            memory_context = await self._retrieve_memory_context(
+                user_id, message, db_pool, intent_result=intent_result
+            )
 
         # Get the agent
         agent = self.agents.get(agent_id)
@@ -551,26 +569,66 @@ class AgentOrchestrator:
 
         return selected_agent_id
 
-    async def _retrieve_memory_context(self, user_id: str, query: str, db_pool) -> dict[str, Any]:
-        """Retrieve memory context from all tiers."""
-        context: dict[str, Any] = {}
+    async def _retrieve_memory_context(
+        self, user_id: str, query: str, db_pool, intent_result: IntentResult | None = None
+    ) -> MemoryContext:
+        """Retrieve memory context from all tiers using unified MemoryManager.
 
+        Args:
+            user_id: User identifier for memory isolation.
+            query: User's query for semantic search.
+            db_pool: Database connection pool.
+            intent_result: Optional intent result for topic extraction.
+
+        Returns:
+            MemoryContext object with retrieved memories.
+        """
         try:
-            # Recall memory - semantic search
-            recall = RecallMemory(user_id, db_pool)
-            recall_results = await recall.search(query, limit=3, threshold=0.6)
-            if recall_results:
-                context["recent"] = [
-                    {"content": r["content"], "similarity": r["similarity"]} for r in recall_results
-                ]
+            # Create unified memory manager
+            memory_manager = MemoryManager(
+                user_id=user_id,
+                db_pool=db_pool,
+                openai_client=self.openai,
+            )
 
-            # Core memory could be added here
-            # For now, we'll implement it in the next US (US-003)
+            # Extract topics from intent entities if available
+            extracted_topics = None
+            if intent_result and intent_result.entities:
+                topic = intent_result.entities.get("topic")
+                if topic:
+                    extracted_topics = [topic]
+
+            # Determine what to include based on intent
+            include_archival = False
+            if intent_result:
+                include_archival = intent_result.intent in (
+                    IntentCategory.KNOWLEDGE_QUERY,
+                    IntentCategory.DEFINITION,
+                    IntentCategory.EXPLANATION,
+                )
+
+            # Retrieve unified context
+            context = await memory_manager.retrieve_context(
+                query=query,
+                include_core=True,
+                include_recall=True,
+                include_archival=include_archival,
+                include_graph=True,
+                extracted_topics=extracted_topics,
+            )
+
+            logger.debug(
+                f"Retrieved context: core={len(context.core)}, "
+                f"recall={len(context.recall)}, archival={len(context.archival)}, "
+                f"graph={len(context.graph)}"
+            )
+
+            return context
 
         except Exception as e:
             logger.warning(f"Failed to retrieve memory context: {e}")
-
-        return context
+            # Return empty context on failure
+            return MemoryContext()
 
     async def _store_interaction(
         self,
@@ -580,15 +638,29 @@ class AgentOrchestrator:
         intent_result: IntentResult,
         db_pool,
     ) -> None:
-        """Store interaction in appropriate memory tier."""
+        """Store interaction in appropriate memory tier using MemoryManager."""
         try:
-            # Store in recall memory for semantic search
-            recall = RecallMemory(user_id, db_pool)
-            await recall.add(
-                f"User: {message}\nAssistant: {response}",
-                importance=0.5 + intent_result.confidence * 0.3,
+            # Create memory manager for storage
+            memory_manager = MemoryManager(
+                user_id=user_id,
+                db_pool=db_pool,
+                openai_client=self.openai,
             )
-            logger.debug("Stored interaction in recall memory")
+
+            # Calculate importance based on intent confidence
+            importance = 0.5 + intent_result.confidence * 0.3
+
+            # Store interaction
+            result = await memory_manager.store_interaction(
+                user_message=message,
+                assistant_response=response,
+                importance=importance,
+                store_in_recall=True,
+                store_in_graph=False,  # Can enable later with entity extraction
+                extract_entities=False,
+            )
+
+            logger.debug(f"Stored interaction in memory: recall_id={result.get('recall_id')}")
 
         except Exception as e:
             logger.warning(f"Failed to store interaction: {e}")
