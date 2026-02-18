@@ -15,15 +15,14 @@ import asyncio
 import signal
 import sys
 from pathlib import Path
+from typing import Any
 
 from loguru import logger
 
 from src.config.settings import get_settings
 from src.database.supabase import get_supabase_client
-from src.discord.handlers import get_message_handler
 from src.discord.bot import create_bot
 from src.utils.logger import setup_logging
-
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -67,8 +66,9 @@ async def initialize_database() -> tuple[bool, Any]:
 
         # Initialize asyncpg pool for async queries
         from asyncpg import create_pool
+
         from src.config.settings import get_settings
-        
+
         settings = get_settings()
         db_pool = await create_pool(
             settings.SUPABASE_DB_URL,
@@ -77,7 +77,7 @@ async def initialize_database() -> tuple[bool, Any]:
         )
 
         logger.info("AsyncPG pool initialized successfully")
-        logger.info(f"Database connections verified")
+        logger.info("Database connections verified")
         return True, db_pool
 
     except Exception as e:
@@ -164,51 +164,28 @@ async def main() -> int:
         logger.info(f"Environment: {settings.ENVIRONMENT}")
         logger.info(f"Log level: {settings.LOG_LEVEL}")
         logger.info(f"OpenAI model: {settings.OPENAI_CHAT_MODEL}")
-        logger.info(f"Embedding model: {settings.OPENAI_EMBEDDING_MODEL}")
     except Exception as e:
         logger.error(f"Failed to load configuration: {e}")
         return 1
 
-        # Step 2: Initialize database
-        try:
-            db_ready, db_pool = await initialize_database()
-            if not db_ready:
-                logger.error("Database initialization failed, aborting startup")
-                return 1
-
-            # Step 2.5: Configure bot instance
-            try:
-                logger.info("Configuring bot instance...")
-                bot = await create_bot(db_pool)
-                
-                logger.info("Bot instance configured successfully")
-
-            except Exception as e:
-                logger.error(f"Failed to configure bot instance: {e}")
-                return 1
+    # Step 2: Initialize database
+    db_pool = None
+    try:
+        db_ready, db_pool = await initialize_database()
+        if not db_ready:
+            logger.error("Database initialization failed, aborting startup")
+            return 1
     except Exception as e:
         logger.error(f"Database initialization error: {e}")
         return 1
 
-        # Step 3: Configure bot instance
-        try:
-            logger.info("Configuring bot instance...")
-            bot = await create_bot(db_pool)
-            
-            logger.info("Bot instance configured successfully")
+    # Step 3: Configure and start bot
+    try:
+        logger.info("Configuring bot instance...")
+        bot = await create_bot(db_pool)
+        logger.info("Bot instance configured successfully")
 
-        except Exception as e:
-            logger.error(f"Failed to configure bot instance: {e}")
-            return 1
-
-    except Exception as e:
-        logger.error(f"Failed to create bot instance: {e}")
-        return 1
-
-        # Step 4.5: Configure and start bot
-        try:
-            logger.info("Starting bot connection to Discord...")
-
+        logger.info("Starting bot connection to Discord...")
         # Run bot in a task that can be cancelled
         bot_task = asyncio.create_task(bot.start(settings.DISCORD_BOT_TOKEN))
 
@@ -218,23 +195,28 @@ async def main() -> int:
 
         if shutdown_handler.should_shutdown():
             logger.info("Shutdown requested, closing bot connection...")
-            # Cancel bot task if still running
             if not bot_task.done():
                 bot_task.cancel()
                 try:
                     await bot_task
                 except asyncio.CancelledError:
-                    logger.info("Bot task cancelled")
+                    logger.debug("Bot task cancelled")
 
             # Close bot connection
             await bot.close()
             logger.info("Bot connection closed gracefully")
+
+        if db_pool:
+            await db_pool.close()
+            logger.info("Database pool closed")
 
         logger.info("Agnaldo Discord Bot - Shutdown complete")
         return 0
 
     except Exception as e:
         logger.error(f"Fatal error during bot execution: {e}")
+        if db_pool:
+            await db_pool.close()
         return 1
 
 

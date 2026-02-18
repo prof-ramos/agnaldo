@@ -8,9 +8,9 @@ import hashlib
 from datetime import datetime, timezone
 from typing import Any
 
+import tiktoken
 from loguru import logger
 from openai import AsyncOpenAI
-import tiktoken
 
 from src.config.settings import get_settings
 from src.exceptions import DatabaseError, EmbeddingGenerationError, MemoryServiceError

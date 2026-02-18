@@ -7,7 +7,6 @@ including modes, window tracking, reduction results, and metrics.
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -91,7 +90,7 @@ class ContextOffloadItem(BaseModel):
     offloaded_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc), description="Timestamp when offloaded"
     )
-    storage_path: Optional[str] = Field(
+    storage_path: str | None = Field(
         None, description="Path or reference to storage location"
     )
     retrieval_score: float = Field(
@@ -192,7 +191,7 @@ class ContextMetrics(BaseModel):
         ge=0.0,
         description="Average ratio of tokens saved per reduction",
     )
-    last_reduction: Optional[ContextReductionResult] = Field(
+    last_reduction: ContextReductionResult | None = Field(
         None, description="Most recent reduction result"
     )
     metrics_collected_at: datetime = Field(

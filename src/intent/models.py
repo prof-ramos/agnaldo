@@ -1,7 +1,7 @@
 """Intent detection models."""
 
-from enum import Enum
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any
 
 
@@ -31,6 +31,9 @@ class IntentCategory(str, Enum):
     GRAPH_QUERY = "graph_query"
     MEMORY_STORE = "memory_store"
     MEMORY_RETRIEVE = "memory_retrieve"
+
+    # Fallback
+    OUT_OF_SCOPE = "out_of_scope"
 
 
 @dataclass

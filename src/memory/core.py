@@ -12,13 +12,12 @@ requiring semantic search or database queries.
 
 import asyncio
 from datetime import datetime, timezone
-from typing import Any, AsyncIterator, Callable
-from uuid import UUID, uuid4
+from typing import Any
 
 from loguru import logger
 
 from src.exceptions import DatabaseError, MemoryServiceError
-from src.schemas.memory import CoreMemoryItem, MemoryTier
+from src.schemas.memory import CoreMemoryItem
 
 
 class CoreMemory:

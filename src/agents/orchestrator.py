@@ -11,22 +11,22 @@ Inspired by OpenClaw techniques:
 """
 
 import asyncio
+from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, AsyncIterator, Callable, Literal, Optional
+from typing import Any, Literal
 
 from loguru import logger
 from openai import AsyncOpenAI
 
 from src.config.settings import get_settings
-from src.exceptions import AgentCommunicationError, DatabaseError
+from src.exceptions import AgentCommunicationError
 from src.intent.classifier import IntentClassifier
 from src.intent.models import IntentCategory, IntentResult
-from src.memory.archival import ArchivalMemory
 from src.memory.core import CoreMemory
 from src.memory.recall import RecallMemory
-from src.schemas.agents import AgentMessage, AgentResponse, AgentMetrics, MessageType
-from src.schemas.memory import MemoryStats
+from src.schemas.agents import AgentMetrics
+from src.agents.study_agent import StudyAgent, get_study_agent
 
 
 class AgentType(str, Enum):
@@ -46,6 +46,9 @@ class AgentType(str, Enum):
 
     OSINT = "osint"
     """OSINT tools and research."""
+
+    STUDY = "study"
+    """Rigorous RAG-based study agent for exam preparation."""
 
 
 class AgentState(str, Enum):
@@ -291,6 +294,10 @@ class AgentOrchestrator:
         # Human-in-the-loop
         self.pending_approvals: dict[str, dict[str, Any]] = {}
         self.approval_timeout_seconds = 300
+
+        # Study agent (RAG rigoroso para concursos)
+        # Inicializado quando db_pool estiver disponível
+        self.study_agent: StudyAgent | None = None
 
         logger.info("AgentOrchestrator initialized")
 
@@ -616,8 +623,8 @@ class AgentOrchestrator:
         Returns:
             Approval request ID.
         """
-        import uuid
         import time
+        import uuid
 
         request_id = f"approval_{uuid.uuid4().hex[:8]}"
 
@@ -681,6 +688,24 @@ class AgentOrchestrator:
         approval["status"] = "approved" if approved else "denied"
         logger.info(f"Approval {request_id} {'approved' if approved else 'denied'}")
         return True
+
+    def setup_study_agent(self, db_pool) -> StudyAgent:
+        """Configura o StudyAgent com o pool de conexões do banco.
+
+        Args:
+            db_pool: Pool de conexões PostgreSQL.
+
+        Returns:
+            Instância configurada do StudyAgent.
+        """
+        if self.study_agent is None:
+            self.study_agent = get_study_agent(
+                db_pool=db_pool,
+                model=self.model,
+                temperature=0.0,  # Determinismo máximo para RAG rigoroso
+            )
+            logger.info("StudyAgent configurado no AgentOrchestrator")
+        return self.study_agent
 
     async def get_stats(self) -> dict[str, Any]:
         """Get orchestrator and agent statistics."""

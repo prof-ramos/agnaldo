@@ -1,7 +1,7 @@
 """Context reduction module for managing token limits."""
 
 from enum import Enum
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 from tiktoken import encoding_for_model
 
@@ -32,7 +32,7 @@ class ContextReducer:
             ) from exc
         self._model = model
 
-    def count_tokens(self, messages: List[Dict[str, Any]]) -> int:
+    def count_tokens(self, messages: list[dict[str, Any]]) -> int:
         """Count tokens in a list of messages.
 
         Args:
@@ -55,10 +55,10 @@ class ContextReducer:
 
     def reduce(
         self,
-        messages: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
         mode: ContextMode = ContextMode.FULL,
         max_tokens: int = 8000,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Reduce context messages to fit within max_tokens.
 
         Args:
@@ -78,10 +78,10 @@ class ContextReducer:
         return messages
 
     def _reduce_full(
-        self, messages: List[Dict[str, Any]], max_tokens: int
-    ) -> List[Dict[str, Any]]:
+        self, messages: list[dict[str, Any]], max_tokens: int
+    ) -> list[dict[str, Any]]:
         """Keep most recent messages within token limit."""
-        result: List[Dict[str, Any]] = []
+        result: list[dict[str, Any]] = []
         current_tokens = 0
 
         for message in reversed(messages):
@@ -95,10 +95,10 @@ class ContextReducer:
         return result
 
     def _reduce_compact(
-        self, messages: List[Dict[str, Any]], max_tokens: int
-    ) -> List[Dict[str, Any]]:
+        self, messages: list[dict[str, Any]], max_tokens: int
+    ) -> list[dict[str, Any]]:
         """Compact messages by removing redundant content."""
-        result: List[Dict[str, Any]] = []
+        result: list[dict[str, Any]] = []
         current_tokens = 0
 
         for message in messages:
@@ -113,13 +113,13 @@ class ContextReducer:
         return result
 
     def _reduce_summary(
-        self, messages: List[Dict[str, Any]], max_tokens: int
-    ) -> List[Dict[str, Any]]:
+        self, messages: list[dict[str, Any]], max_tokens: int
+    ) -> list[dict[str, Any]]:
         """Keep only system messages and recent user/assistant messages."""
         system_messages = [m for m in messages if m.get("role") == "system"]
         conversation = [m for m in messages if m.get("role") != "system"]
 
-        trimmed_system: List[Dict[str, Any]] = []
+        trimmed_system: list[dict[str, Any]] = []
         system_tokens = 0
         for msg in reversed(system_messages):
             msg_tokens = self._count_message_tokens(msg)
@@ -129,11 +129,11 @@ class ContextReducer:
             else:
                 break
 
-        result: List[Dict[str, Any]] = []
+        result: list[dict[str, Any]] = []
         current_tokens = system_tokens
 
         result.extend(trimmed_system)
-        preserved_conversation: List[Dict[str, Any]] = []
+        preserved_conversation: list[dict[str, Any]] = []
 
         for message in reversed(conversation):
             tokens = self._count_message_tokens(message)
@@ -146,7 +146,7 @@ class ContextReducer:
         result.extend(reversed(preserved_conversation))
         return result
 
-    def _count_message_tokens(self, message: Dict[str, Any]) -> int:
+    def _count_message_tokens(self, message: dict[str, Any]) -> int:
         """Count tokens in a single message."""
         content = message.get("content", "")
         if isinstance(content, str):
@@ -159,7 +159,7 @@ class ContextReducer:
             return total
         return 0
 
-    def _compact_message(self, message: Dict[str, Any]) -> Dict[str, Any]:
+    def _compact_message(self, message: dict[str, Any]) -> dict[str, Any]:
         """Remove whitespace and redundant content from a message."""
         content = message.get("content", "")
         if isinstance(content, str):

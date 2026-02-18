@@ -3,10 +3,10 @@
 import re
 from typing import Any
 
-from discord import Guild, Interaction, Message
 from discord.ext.commands import Bot
-
 from loguru import logger
+
+from discord import Guild, Interaction, Message
 
 
 def sanitize_message_preview(content: str, max_chars: int = 80) -> str:
@@ -78,7 +78,7 @@ def setup_events(bot: Bot) -> None:
                     await message.channel.send(response)
             except Exception as e:
                 logger.error(f"Error in message handler: {e}")
-                await message.channel.send(f"Ocorreu um erro ao processar sua mensagem.")
+                await message.channel.send("Ocorreu um erro ao processar sua mensagem.")
 
         # Log message for monitoring (in dev mode only)
         if bot.settings.is_dev:
@@ -119,7 +119,7 @@ def setup_events(bot: Bot) -> None:
         }
 
         error_type = type(error).__name__
-        message = error_messages.get(error_type, f"An error occurred while executing the command.")
+        message = error_messages.get(error_type, "An error occurred while executing the command.")
 
         try:
             await _send_context_message(ctx, message)

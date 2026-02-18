@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -43,8 +43,8 @@ class AgentResponse(BaseModel):
 
     message_id: str = Field(..., description="ID of the message this response corresponds to")
     status: ResponseStatus = Field(..., description="Response status")
-    data: Optional[dict[str, Any]] = Field(default=None, description="Response data")
-    error: Optional[str] = Field(default=None, description="Error message if status is error")
+    data: dict[str, Any] | None = Field(default=None, description="Response data")
+    error: str | None = Field(default=None, description="Error message if status is error")
 
     model_config = ConfigDict(use_enum_values=True)
 
@@ -54,7 +54,7 @@ class AgentMetrics(BaseModel):
 
     agent_name: str = Field(..., description="Name of the agent")
     execution_time: float = Field(..., description="Execution time in seconds")
-    memory_usage: Optional[int] = Field(default=None, description="Memory usage in bytes")
-    tokens_used: Optional[int] = Field(default=None, description="Number of tokens consumed")
+    memory_usage: int | None = Field(default=None, description="Memory usage in bytes")
+    tokens_used: int | None = Field(default=None, description="Number of tokens consumed")
 
     model_config = ConfigDict()

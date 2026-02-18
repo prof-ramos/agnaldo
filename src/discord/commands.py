@@ -1,16 +1,12 @@
 """Slash command handlers for Discord bot."""
 
-import asyncio
-from typing import Optional
-
-from discord import app_commands
 from discord.ext.commands import Bot
-
 from loguru import logger
 
+from discord import app_commands
+from src.knowledge.graph import KnowledgeGraph
 from src.memory.core import CoreMemory
 from src.memory.recall import RecallMemory
-from src.knowledge.graph import KnowledgeGraph
 
 
 def _preview_with_ellipsis(text: str, max_len: int = 100) -> str:
@@ -268,100 +264,6 @@ Channel tokens available: {channel_text}
     # Knowledge Graph Commands
     # ================================================================
 
-    @memory_group.command(name="add", description="Store an important fact in core memory")
-    @app_commands.describe(
-        key="Unique key for the memory (e.g., 'preference-language')",
-        value="The value/content to store",
-        importance="Importance score from 0.0 to 1.0 (default: 0.5)",
-    )
-    async def memory_add(
-        interaction,
-        key: str,
-        value: str,
-        importance: float = 0.5,
-    ) -> None:
-        """Store a fact in core memory."""
-        # Apply rate limiting
-        rate_limiter = bot.get_rate_limiter()
-        await rate_limiter.acquire(channel_id=str(interaction.channel_id))
-
-        # Validate importance
-        if not 0.0 <= importance <= 1.0:
-            await interaction.response.send_message(
-                "Importance must be between 0.0 and 1.0", ephemeral=True
-            )
-            return
-
-        try:
-            # Get database pool from bot
-            db_pool = getattr(bot, "db_pool", None)
-            if not db_pool:
-                await interaction.response.send_message("Database not available", ephemeral=True)
-                return
-
-            user_id = str(interaction.user.id)
-            core_memory = CoreMemory(user_id, db_pool)
-
-            await core_memory.add(key, value, importance=importance)
-
-            await interaction.response.send_message(
-                f"✅ Stored: `{key}` = `{value}` (importance: {importance})",
-                ephemeral=True,
-            )
-            logger.info(f"Memory added by {interaction.user}: {key}={value}")
-
-        except Exception as e:
-            logger.error(f"Memory add error: {e}")
-            await interaction.response.send_message(f"Failed to store memory: {e}", ephemeral=True)
-
-    @memory_group.command(name="recall", description="Search your memories by semantic similarity")
-    @app_commands.describe(
-        query="What to search for in your memories",
-        limit="Maximum number of results (default: 5)",
-    )
-    async def memory_recall(
-        interaction,
-        query: str,
-        limit: int = 5,
-    ) -> None:
-        """Search memories semantically."""
-        # Apply rate limiting
-        rate_limiter = bot.get_rate_limiter()
-        await rate_limiter.acquire(channel_id=str(interaction.channel_id))
-
-        try:
-            db_pool = getattr(bot, "db_pool", None)
-            if not db_pool:
-                await interaction.response.send_message("Database not available", ephemeral=True)
-                return
-
-            user_id = str(interaction.user.id)
-            recall_memory = RecallMemory(user_id, db_pool)
-
-            results = await recall_memory.search(query, limit=limit, threshold=0.5)
-
-            if not results:
-                await interaction.response.send_message(
-                    f"🔍 No memories found for: `{query}`", ephemeral=True
-                )
-                return
-
-            # Format results
-            response_parts = [f"🔍 Found {len(results)} memories for: `{query}`\n"]
-            for i, r in enumerate(results[:10], 1):
-                similarity_pct = int(r["similarity"] * 100)
-                preview = _preview_with_ellipsis(r["content"], 100)
-                response_parts.append(f"**{i}.** {preview} (similarity: {similarity_pct}%)")
-
-            await interaction.response.send_message("\n".join(response_parts), ephemeral=True)
-            logger.info(f"Memory recall by {interaction.user}: {query} ({len(results)} results)")
-
-        except Exception as e:
-            logger.error(f"Memory recall error: {e}")
-            await interaction.response.send_message(
-                f"Failed to search memories: {e}", ephemeral=True
-            )
-
     # ================================================================
     # Knowledge Graph Commands
     # ================================================================
@@ -379,7 +281,7 @@ Channel tokens available: {channel_text}
     async def graph_add_node(
         interaction,
         label: str,
-        node_type: Optional[str] = None,
+        node_type: str | None = None,
     ) -> None:
         """Add a node to the knowledge graph."""
         # Apply rate limiting
@@ -395,7 +297,7 @@ Channel tokens available: {channel_text}
             user_id = str(interaction.user.id)
             graph = KnowledgeGraph(user_id, db_pool)
 
-            node = await graph.add_node(label, node_type)
+            await graph.add_node(label, node_type)
 
             await interaction.response.send_message(
                 f"✅ Added node: **{label}** (type: {node_type or 'default'})",

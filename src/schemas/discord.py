@@ -7,7 +7,7 @@ users, messages, commands, attachments, channels, and guilds.
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -15,10 +15,10 @@ from pydantic import BaseModel, Field
 class DiscordEmbed(BaseModel):
     """Typed representation for Discord embeds."""
 
-    title: Optional[str] = None
-    description: Optional[str] = None
-    type: Optional[str] = None
-    url: Optional[str] = None
+    title: str | None = None
+    description: str | None = None
+    type: str | None = None
+    url: str | None = None
 
 
 class DiscordReaction(BaseModel):
@@ -46,15 +46,15 @@ class DiscordUser(BaseModel):
 
     id: str = Field(..., description="Discord user ID (snowflake)")
     username: str = Field(..., min_length=1, max_length=32, description="Discord username")
-    discriminator: Optional[str] = Field(
+    discriminator: str | None = Field(
         None, description="User discriminator (legacy 4-digit tag)"
     )
-    global_name: Optional[str] = Field(None, description="User's display name")
-    avatar_hash: Optional[str] = Field(None, description="Hash for user's avatar")
+    global_name: str | None = Field(None, description="User's display name")
+    avatar_hash: str | None = Field(None, description="Hash for user's avatar")
     is_bot: bool = Field(default=False, description="Whether the user is a bot")
     is_system: bool = Field(default=False, description="Whether the user is a system user")
     public_flags: int = Field(default=0, description="Public flags for the user")
-    created_at: Optional[datetime] = Field(None, description="Account creation timestamp")
+    created_at: datetime | None = Field(None, description="Account creation timestamp")
 
     model_config = {"use_enum_values": True}
 
@@ -96,11 +96,11 @@ class DiscordAttachment(BaseModel):
     url: str = Field(..., description="URL to download the attachment")
     proxy_url: str = Field(..., description="Proxied URL for the attachment")
     size: int = Field(..., ge=0, description="Size in bytes")
-    content_type: Optional[str] = Field(None, description="MIME type of the attachment")
-    description: Optional[str] = Field(None, description="User-provided description (alt text)")
+    content_type: str | None = Field(None, description="MIME type of the attachment")
+    description: str | None = Field(None, description="User-provided description (alt text)")
     ephemeral: bool = Field(default=False, description="Whether attachment is ephemeral")
-    width: Optional[int] = Field(None, ge=0, description="Image width if applicable")
-    height: Optional[int] = Field(None, ge=0, description="Image height if applicable")
+    width: int | None = Field(None, ge=0, description="Image width if applicable")
+    height: int | None = Field(None, ge=0, description="Image height if applicable")
 
     model_config = {"use_enum_values": True}
 
@@ -144,11 +144,11 @@ class DiscordMessage(BaseModel):
 
     id: str = Field(..., description="Message ID (snowflake)")
     channel_id: str = Field(..., description="Channel ID where message was sent")
-    guild_id: Optional[str] = Field(None, description="Guild ID if in a guild")
+    guild_id: str | None = Field(None, description="Guild ID if in a guild")
     author: DiscordUser = Field(..., description="Message author information")
     content: str = Field(default="", description="Message content text")
     timestamp: datetime = Field(..., description="Message creation timestamp")
-    edited_timestamp: Optional[datetime] = Field(None, description="Timestamp of last edit")
+    edited_timestamp: datetime | None = Field(None, description="Timestamp of last edit")
     tts: bool = Field(default=False, description="Whether this is a TTS message")
     mention_everyone: bool = Field(
         default=False, description="Whether @everyone was mentioned"
@@ -162,7 +162,7 @@ class DiscordMessage(BaseModel):
     )
     pinned: bool = Field(default=False, description="Whether the message is pinned")
     type: int = Field(default=0, description="Message type integer")
-    message_reference: Optional[dict[str, Any]] = Field(
+    message_reference: dict[str, Any] | None = Field(
         None, description="Reference if this is a reply"
     )
 
@@ -224,7 +224,7 @@ class DiscordCommand(BaseModel):
         default=DiscordCommandType.CHAT_INPUT, description="Type of command"
     )
     application_id: str = Field(..., description="Application ID that created the command")
-    guild_id: Optional[str] = Field(None, description="Guild ID if guild-specific")
+    guild_id: str | None = Field(None, description="Guild ID if guild-specific")
     name: str = Field(..., min_length=1, max_length=32, description="Command name")
     description: str = Field(default="", description="Command description")
     options: list[dict[str, Any]] = Field(
@@ -234,8 +234,8 @@ class DiscordCommand(BaseModel):
         default=True, description="Whether enabled by default"
     )
     version: str = Field(..., description="Command version identifier")
-    created_at: Optional[datetime] = Field(None, description="Command creation timestamp")
-    updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
+    created_at: datetime | None = Field(None, description="Command creation timestamp")
+    updated_at: datetime | None = Field(None, description="Last update timestamp")
 
     model_config = {"use_enum_values": True}
 
@@ -311,17 +311,17 @@ class DiscordChannel(BaseModel):
 
     id: str = Field(..., description="Channel ID (snowflake)")
     type: DiscordChannelType = Field(..., description="Channel type")
-    guild_id: Optional[str] = Field(None, description="Guild ID if in a guild")
-    position: Optional[int] = Field(None, description="Sorting position")
-    name: Optional[str] = Field(None, max_length=100, description="Channel name")
-    topic: Optional[str] = Field(None, max_length=1024, description="Channel topic")
+    guild_id: str | None = Field(None, description="Guild ID if in a guild")
+    position: int | None = Field(None, description="Sorting position")
+    name: str | None = Field(None, max_length=100, description="Channel name")
+    topic: str | None = Field(None, max_length=1024, description="Channel topic")
     nsfw: bool = Field(default=False, description="Whether channel is NSFW")
-    last_message_id: Optional[str] = Field(None, description="ID of last message")
-    bitrate: Optional[int] = Field(None, ge=0, description="Voice channel bitrate")
-    user_limit: Optional[int] = Field(None, ge=0, description="Voice channel user limit")
+    last_message_id: str | None = Field(None, description="ID of last message")
+    bitrate: int | None = Field(None, ge=0, description="Voice channel bitrate")
+    user_limit: int | None = Field(None, ge=0, description="Voice channel user limit")
     rate_limit_per_user: int = Field(default=0, ge=0, description="Slowmode delay")
-    parent_id: Optional[str] = Field(None, description="Category parent ID")
-    created_at: Optional[datetime] = Field(None, description="Channel creation timestamp")
+    parent_id: str | None = Field(None, description="Category parent ID")
+    created_at: datetime | None = Field(None, description="Channel creation timestamp")
 
     model_config = {"use_enum_values": True}
 
@@ -371,12 +371,12 @@ class DiscordGuild(BaseModel):
 
     id: str = Field(..., description="Guild ID (snowflake)")
     name: str = Field(..., min_length=1, max_length=100, description="Guild name")
-    icon_hash: Optional[str] = Field(None, description="Hash for guild icon")
-    description: Optional[str] = Field(None, description="Guild description")
-    splash_hash: Optional[str] = Field(None, description="Hash for splash image")
+    icon_hash: str | None = Field(None, description="Hash for guild icon")
+    description: str | None = Field(None, description="Guild description")
+    splash_hash: str | None = Field(None, description="Hash for splash image")
     owner_id: str = Field(..., description="Owner user ID")
-    region: Optional[str] = Field(None, description="Voice region (deprecated)")
-    afk_channel_id: Optional[str] = Field(None, description="AFK voice channel ID")
+    region: str | None = Field(None, description="Voice region (deprecated)")
+    afk_channel_id: str | None = Field(None, description="AFK voice channel ID")
     afk_timeout: int = Field(default=300, ge=0, description="AFK timeout in seconds")
     verification_level: int = Field(default=0, ge=0, le=4, description="Verification level")
     default_message_notifications: int = Field(
@@ -389,11 +389,11 @@ class DiscordGuild(BaseModel):
     emojis: list[dict[str, Any]] = Field(default_factory=list, description="Guild emojis")
     features: list[str] = Field(default_factory=list, description="Guild features")
     mfa_level: int = Field(default=0, ge=0, le=1, description="Required MFA level")
-    application_id: Optional[str] = Field(None, description="Application ID if bot creator")
-    system_channel_id: Optional[str] = Field(None, description="System channel ID")
+    application_id: str | None = Field(None, description="Application ID if bot creator")
+    system_channel_id: str | None = Field(None, description="System channel ID")
     premium_tier: int = Field(default=0, ge=0, le=3, description="Server boost level")
-    member_count: Optional[int] = Field(None, ge=0, description="Approximate member count")
-    created_at: Optional[datetime] = Field(None, description="Guild creation timestamp")
+    member_count: int | None = Field(None, ge=0, description="Approximate member count")
+    created_at: datetime | None = Field(None, description="Guild creation timestamp")
 
     model_config = {"use_enum_values": True}
 

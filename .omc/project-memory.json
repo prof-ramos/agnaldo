@@ -1,0 +1,313 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1771358687395,
+  "projectRoot": "/Users/gabrielramos/agnaldo",
+  "techStack": {
+    "languages": [
+      {
+        "name": "Python",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "pyproject.toml"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "pytest",
+        "version": null,
+        "category": "testing"
+      }
+    ],
+    "packageManager": null,
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": "pytest",
+    "lintCommand": "ruff check",
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "docs",
+      "scripts",
+      "src",
+      "tests"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "agnaldo": {
+      "path": "agnaldo",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1771358687381,
+      "keyFiles": [
+        "__init__.py"
+      ]
+    },
+    "data": {
+      "path": "data",
+      "purpose": "Data files",
+      "fileCount": 0,
+      "lastAccessed": 1771358687382,
+      "keyFiles": []
+    },
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 12,
+      "lastAccessed": 1771358687383,
+      "keyFiles": [
+        "01-quickstart.md",
+        "02-uso-no-discord.md",
+        "03-memoria.md",
+        "04-prompts-e-personalidade.md",
+        "05-banco-de-dados.md"
+      ]
+    },
+    "logs": {
+      "path": "logs",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1771358687387,
+      "keyFiles": [
+        "agnaldo.log"
+      ]
+    },
+    "memory": {
+      "path": "memory",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1771358687388,
+      "keyFiles": []
+    },
+    "reports": {
+      "path": "reports",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1771358687388,
+      "keyFiles": []
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 4,
+      "lastAccessed": 1771358687389,
+      "keyFiles": [
+        "__init__.py",
+        "ingest_legal_pdfs.py",
+        "run_tests.py",
+        "run_tests.sh"
+      ]
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 3,
+      "lastAccessed": 1771358687389,
+      "keyFiles": [
+        "__init__.py",
+        "exceptions.py",
+        "main.py"
+      ]
+    },
+    "tests": {
+      "path": "tests",
+      "purpose": "Test files",
+      "fileCount": 5,
+      "lastAccessed": 1771358687390,
+      "keyFiles": [
+        "__init__.py",
+        "conftest.py",
+        "test_fixtures.py",
+        "test_graph.py",
+        "test_memory.py"
+      ]
+    },
+    "reports/tests": {
+      "path": "reports/tests",
+      "purpose": "Test files",
+      "fileCount": 0,
+      "lastAccessed": 1771358687394,
+      "keyFiles": []
+    },
+    "src/config": {
+      "path": "src/config",
+      "purpose": "Configuration files",
+      "fileCount": 2,
+      "lastAccessed": 1771358687395,
+      "keyFiles": [
+        "__init__.py",
+        "settings.py"
+      ]
+    },
+    "tests/fixtures": {
+      "path": "tests/fixtures",
+      "purpose": "Test fixtures",
+      "fileCount": 4,
+      "lastAccessed": 1771358687395,
+      "keyFiles": [
+        "__init__.py",
+        "discord.py",
+        "factories.py"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "src/discord/handlers.py",
+      "accessCount": 31,
+      "lastAccessed": 1771360632564,
+      "type": "file"
+    },
+    {
+      "path": "src/agents/orchestrator.py",
+      "accessCount": 27,
+      "lastAccessed": 1771360697889,
+      "type": "file"
+    },
+    {
+      "path": "src/database/models.py",
+      "accessCount": 7,
+      "lastAccessed": 1771359983851,
+      "type": "file"
+    },
+    {
+      "path": "tests/unit/test_validators/test_citation_validator.py",
+      "accessCount": 6,
+      "lastAccessed": 1771360443206,
+      "type": "file"
+    },
+    {
+      "path": "",
+      "accessCount": 6,
+      "lastAccessed": 1771360740325,
+      "type": "directory"
+    },
+    {
+      "path": "src/validators/citation_validator.py",
+      "accessCount": 5,
+      "lastAccessed": 1771360707380,
+      "type": "file"
+    },
+    {
+      "path": "src/discord/events.py",
+      "accessCount": 4,
+      "lastAccessed": 1771359998062,
+      "type": "file"
+    },
+    {
+      "path": "src/schemas/knowledge.py",
+      "accessCount": 4,
+      "lastAccessed": 1771360702119,
+      "type": "directory"
+    },
+    {
+      "path": "src/agents/__init__.py",
+      "accessCount": 3,
+      "lastAccessed": 1771358844003,
+      "type": "file"
+    },
+    {
+      "path": "src/agents/study_agent.py",
+      "accessCount": 3,
+      "lastAccessed": 1771360696791,
+      "type": "file"
+    },
+    {
+      "path": "src",
+      "accessCount": 3,
+      "lastAccessed": 1771360702475,
+      "type": "directory"
+    },
+    {
+      "path": "src/intent/router.py",
+      "accessCount": 2,
+      "lastAccessed": 1771360856302,
+      "type": "file"
+    },
+    {
+      "path": "src/discord",
+      "accessCount": 2,
+      "lastAccessed": 1771363165358,
+      "type": "directory"
+    },
+    {
+      "path": "pyproject.toml",
+      "accessCount": 2,
+      "lastAccessed": 1771363178574,
+      "type": "file"
+    },
+    {
+      "path": "src/memory/archival.py",
+      "accessCount": 1,
+      "lastAccessed": 1771358715814,
+      "type": "file"
+    },
+    {
+      "path": "src/validators/__init__.py",
+      "accessCount": 1,
+      "lastAccessed": 1771358735814,
+      "type": "file"
+    },
+    {
+      "path": "src/discord/bot.py",
+      "accessCount": 1,
+      "lastAccessed": 1771359017039,
+      "type": "file"
+    },
+    {
+      "path": "src/discord/rate_limiter.py",
+      "accessCount": 1,
+      "lastAccessed": 1771359439070,
+      "type": "file"
+    },
+    {
+      "path": "src/knowledge/legal_pdf_ingestor.py",
+      "accessCount": 1,
+      "lastAccessed": 1771359871713,
+      "type": "file"
+    },
+    {
+      "path": "src/database/migrations/versions/001_initial.py",
+      "accessCount": 1,
+      "lastAccessed": 1771359959224,
+      "type": "file"
+    },
+    {
+      "path": "tests/unit/test_validators/__init__.py",
+      "accessCount": 1,
+      "lastAccessed": 1771360390870,
+      "type": "file"
+    },
+    {
+      "path": "PRD.md",
+      "accessCount": 1,
+      "lastAccessed": 1771360691596,
+      "type": "file"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "accessCount": 1,
+      "lastAccessed": 1771360701996,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

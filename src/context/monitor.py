@@ -3,7 +3,7 @@
 import asyncio
 from collections import defaultdict
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -55,8 +55,8 @@ class ContextMonitorMetrics(BaseModel):
     total_tokens: int
     context_reduction_ratio: float
     cache_hit_rate: float
-    agent_execution_time: Dict[str, float]
-    memory_usage_by_tier: Dict[str, int]
+    agent_execution_time: dict[str, float]
+    memory_usage_by_tier: dict[str, int]
     timestamp: datetime
 
 
@@ -106,11 +106,11 @@ class ContextMonitor:
         Args:
             max_history_size: Maximum number of metric records to keep per session.
         """
-        self._metrics: Dict[str, List[ContextMonitorMetrics]] = defaultdict(list)
+        self._metrics: dict[str, list[ContextMonitorMetrics]] = defaultdict(list)
         self._max_history_size = max_history_size
-        self._cache_hits: Dict[str, int] = defaultdict(int)
-        self._cache_misses: Dict[str, int] = defaultdict(int)
-        self._agent_calls: Dict[str, int] = defaultdict(int)
+        self._cache_hits: dict[str, int] = defaultdict(int)
+        self._cache_misses: dict[str, int] = defaultdict(int)
+        self._agent_calls: dict[str, int] = defaultdict(int)
         self._lock = asyncio.Lock()
 
     async def record_metrics(self, session_id: str, metrics: ContextMonitorMetrics) -> None:
@@ -155,7 +155,7 @@ class ContextMonitor:
         async with self._lock:
             self._agent_calls[agent_name] += 1
 
-    async def get_dashboard(self, session_id: str) -> Dict[str, Any]:
+    async def get_dashboard(self, session_id: str) -> dict[str, Any]:
         """Get dashboard data for a specific session.
 
         Args:
@@ -174,8 +174,8 @@ class ContextMonitor:
             for m in session_metrics
         ]
 
-        memory_by_tier: Dict[str, int] = defaultdict(int)
-        agent_distribution: Dict[str, int] = defaultdict(int)
+        memory_by_tier: dict[str, int] = defaultdict(int)
+        agent_distribution: dict[str, int] = defaultdict(int)
         for metric in session_metrics:
             for tier, count in metric.memory_usage_by_tier.items():
                 memory_by_tier[tier] += count
@@ -219,9 +219,9 @@ class ContextMonitor:
     async def _get_summary(
         self,
         session_id: str,
-        preloaded: Optional[List[ContextMonitorMetrics]] = None,
-        hits: Optional[int] = None,
-        misses: Optional[int] = None,
+        preloaded: list[ContextMonitorMetrics] | None = None,
+        hits: int | None = None,
+        misses: int | None = None,
     ) -> DashboardSummary:
         """Generate summary statistics for a session.
 
@@ -264,7 +264,7 @@ class ContextMonitor:
             cache_efficiency=cache_efficiency,
         )
 
-    async def get_session_metrics(self, session_id: str) -> List[ContextMonitorMetrics]:
+    async def get_session_metrics(self, session_id: str) -> list[ContextMonitorMetrics]:
         """Get all metrics for a specific session.
 
         Args:
@@ -277,7 +277,7 @@ class ContextMonitor:
             metrics = self._metrics.get(session_id)
             return metrics.copy() if metrics else []
 
-    async def get_all_sessions(self) -> List[str]:
+    async def get_all_sessions(self) -> list[str]:
         """Get list of all session IDs.
 
         Returns:
@@ -300,7 +300,7 @@ class ContextMonitor:
             if session_id in self._cache_misses:
                 del self._cache_misses[session_id]
 
-    async def get_cache_stats(self, session_id: str) -> Dict[str, Any]:
+    async def get_cache_stats(self, session_id: str) -> dict[str, Any]:
         """Get cache statistics for a session.
 
         Args:
@@ -321,7 +321,7 @@ class ContextMonitor:
             "hit_rate": hits / total if total > 0 else 0.0,
         }
 
-    async def get_agent_stats(self) -> Dict[str, int]:
+    async def get_agent_stats(self) -> dict[str, int]:
         """Get agent call statistics.
 
         Returns:
@@ -330,7 +330,7 @@ class ContextMonitor:
         async with self._lock:
             return dict(self._agent_calls)
 
-    async def get_global_summary(self) -> Dict[str, Any]:
+    async def get_global_summary(self) -> dict[str, Any]:
         """Get global summary across all sessions.
 
         Returns:

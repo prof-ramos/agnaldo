@@ -10,17 +10,18 @@ This module provides message processing capabilities that:
 
 import asyncio
 import hashlib
-from datetime import datetime, timezone
+import time
 from typing import Any
 
-from discord import Message
 from discord.ext.commands import Bot
 from loguru import logger
 
+from discord import Message
 from src.agents.orchestrator import AgentOrchestrator, get_orchestrator
+from src.agents.study_agent import StudyAgent
 from src.exceptions import AgentCommunicationError
 from src.intent.classifier import IntentClassifier
-from src.intent.models import IntentResult
+from src.schemas.knowledge import StudyAgentRequest
 
 
 class MessageHandler:
@@ -43,6 +44,12 @@ class MessageHandler:
         self.intent_classifier = intent_classifier
         self.db_pool = db_pool
         self._orchestrator: AgentOrchestrator | None = None
+        self._study_agent: StudyAgent | None = None
+
+        # Rate limiting para comando !ask (5 requisições por minuto por usuário)
+        self._ask_rate_limit: dict[str, list[float]] = {}  # user_id -> [timestamps]
+        self._ask_rate_limit_max_requests = 5
+        self._ask_rate_limit_window = 60  # segundos
 
     async def initialize(self) -> None:
         """Initialize the handler and orchestrator."""
@@ -53,7 +60,13 @@ class MessageHandler:
         self._orchestrator = await get_orchestrator(
             personality_instructions=personality_instructions,
         )
-        logger.info("MessageHandler initialized with orchestrator")
+
+        # Setup StudyAgent se db_pool estiver disponível
+        if self.db_pool:
+            self._study_agent = self._orchestrator.setup_study_agent(self.db_pool)
+            logger.info("MessageHandler initialized with orchestrator and StudyAgent")
+        else:
+            logger.warning("No db_pool provided, StudyAgent will not be available")
 
     async def process_message(self, message: Message) -> str | None:
         """Process a Discord message through the agent system.
@@ -85,6 +98,10 @@ class MessageHandler:
             "guild_name": message.guild.name if message.guild else "DM",
             "is_dm": message.guild is None,
         }
+
+        # Detect comando !ask para modo estudo rigoroso
+        if message.content.strip().startswith("!ask "):
+            return await self._handle_ask_command(message, user_id, context)
 
         user_token = hashlib.sha256(user_id.encode()).hexdigest()[:12]
         content_hash = hashlib.sha256(message.content.encode()).hexdigest()[:12]
@@ -130,6 +147,169 @@ class MessageHandler:
         except Exception as e:
             logger.error(f"Unexpected error processing message: {e}")
             return "Desculpe, ocorreu um erro inesperado. Por favor, tente novamente."
+
+    def _check_ask_rate_limit(self, user_id: str) -> bool:
+        """Verifica se o usuário excedeu o rate limit do comando !ask.
+
+        Args:
+            user_id: ID do usuário Discord.
+
+        Returns:
+            True se a requisição deve ser permitida, False se excedeu o limite.
+        """
+        now = time.time()
+        window_start = now - self._ask_rate_limit_window
+
+        # Limpar timestamps antigos
+        if user_id in self._ask_rate_limit:
+            self._ask_rate_limit[user_id] = [
+                ts for ts in self._ask_rate_limit[user_id]
+                if ts > window_start
+            ]
+
+        # Verificar limite
+        request_count = len(self._ask_rate_limit.get(user_id, []))
+        if request_count >= self._ask_rate_limit_max_requests:
+            logger.warning(
+                f"Rate limit excedido para usuário {user_id[:12]}: "
+                f"{request_count} requisições em {self._ask_rate_limit_window}s"
+            )
+            return False
+
+        # Adicionar timestamp atual
+        if user_id not in self._ask_rate_limit:
+            self._ask_rate_limit[user_id] = []
+        self._ask_rate_limit[user_id].append(now)
+
+        return True
+
+    async def _handle_ask_command(
+        self,
+        message: Message,
+        user_id: str,
+        context: dict[str, Any],
+    ) -> str:
+        """Processa comando !ask usando StudyAgent para RAG rigoroso.
+
+        Args:
+            message: Discord message.
+            user_id: User ID.
+            context: Contexto do Discord.
+
+        Returns:
+            Resposta do StudyAgent ou mensagem de erro.
+        """
+        # Verificar rate limit (5 requisições por minuto por usuário)
+        if not self._check_ask_rate_limit(user_id):
+            remaining_time = self._ask_rate_limit_window  # Simplificado
+            return f"❌ Você excedeu o limite de 5 requisições por minuto do comando !ask. Aguarde {remaining_time}s antes de tentar novamente."
+
+        if self._study_agent is None:
+            return "❌ StudyAgent não disponível. Verifique se o db_pool foi configurado."
+
+        # Extrair pergunta após o prefixo !ask
+        question = message.content.strip()[5:].strip()  # Remove "!ask "
+        if not question:
+            return "❌ Uso: `!ask <sua pergunta>` - Exemplo: `!ask quais são as qualificadoras do homicídio?`"
+
+        start_time = asyncio.get_event_loop().time()
+
+        try:
+            # Criar request para StudyAgent
+            request = StudyAgentRequest(
+                question=question,
+                user_id=user_id,
+                category_filter=None,  # Busca em todas as categorias legais
+                max_results=5,
+                threshold=0.7,
+            )
+
+            # Processar com StudyAgent
+            response = await self._study_agent.answer(request)
+
+            # Logging estruturado
+            duration = asyncio.get_event_loop().time() - start_time
+            logger.info(
+                f"!ask command processed user_id={user_id[:12]} "
+                f"question_length={len(question)} "
+                f"confidence={response.confidence:.2f} "
+                f"sources_count={len(response.sources)} "
+                f"duration_ms={int(duration * 1000)}"
+            )
+
+            # Store conversation
+            if self.db_pool:
+                await self._store_conversation(
+                    user_id=user_id,
+                    channel_id=str(message.channel.id),
+                    guild_id=str(message.guild.id) if message.guild else None,
+                    user_message=message.content,
+                    assistant_response=response.answer,
+                )
+
+            return response.answer
+
+        except Exception as e:
+            logger.error(f"Error processing !ask command: {e}")
+            return f"❌ Erro ao processar pergunta: {e}"
+
+    async def handle_general_message(
+        self,
+        message: Message,
+        user_id: str,
+        context: dict[str, Any],
+    ) -> str:
+        """Processa mensagens gerais (chat livre) usando o AgentOrchestrator.
+
+        Args:
+            message: Discord message.
+            user_id: User ID.
+            context: Contexto do Discord.
+
+        Returns:
+            Resposta do agente conversacional.
+        """
+        # Mensagem sem o prefixo !ask - usa chat livre
+        user_message = message.content.strip()
+        start_time = asyncio.get_event_loop().time()
+
+        try:
+            # Processar através do orchestrator (modo conversacional)
+            response_chunks = []
+            async for chunk in self._orchestrator.route_and_process(
+                message=user_message,
+                context=context,
+                user_id=user_id,
+                db_pool=self.db_pool,
+            ):
+                response_chunks.append(chunk)
+
+            response = "".join(response_chunks)
+
+            # Logging estruturado para chat livre
+            duration = asyncio.get_event_loop().time() - start_time
+            logger.info(
+                f"general_message processed user_id={user_id[:12]} "
+                f"message_length={len(user_message)} "
+                f"response_length={len(response)} "
+                f"duration_ms={int(duration * 1000)}"
+            )
+
+            # Store conversation
+            if self.db_pool:
+                await self._store_conversation(
+                    user_id=user_id,
+                    channel_id=str(message.channel.id),
+                    guild_id=str(message.guild.id) if message.guild else None,
+                    user_message=user_message,
+                    assistant_response=response,
+                )
+
+            return response
+
+        except Exception as e:
+            logger.error(f"Error processing general message: {e}")
+            return "Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente."
 
     async def _store_conversation(
         self,

@@ -1,7 +1,7 @@
 """Context offloading module for caching and on-demand loading."""
 
 from asyncio import Lock
-from typing import Optional, Dict, Any
+from typing import Any
 
 
 class ContextOffloading:
@@ -14,9 +14,9 @@ class ContextOffloading:
             maxsize: Maximum number of cached items
         """
         self._maxsize = maxsize
-        self._cache: Dict[str, Dict[str, Any]] = {}
+        self._cache: dict[str, dict[str, Any]] = {}
         self._lock = Lock()
-        self._priority_index: Dict[int, list[str]] = {}
+        self._priority_index: dict[int, list[str]] = {}
 
     async def offload(self, key: str, content: str, priority: int = 0) -> str:
         """Offload context content to cache.
@@ -35,7 +35,7 @@ class ContextOffloading:
             await self._evict_if_needed()
         return key
 
-    async def load_on_demand(self, key: str) -> Optional[str]:
+    async def load_on_demand(self, key: str) -> str | None:
         """Load offloaded context by key.
 
         Args:
@@ -79,7 +79,7 @@ class ContextOffloading:
             self._cache.clear()
             self._priority_index.clear()
 
-    async def get_stats(self) -> Dict[str, Any]:
+    async def get_stats(self) -> dict[str, Any]:
         """Get cache statistics.
 
         Returns:

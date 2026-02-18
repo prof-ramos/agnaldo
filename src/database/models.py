@@ -588,3 +588,12 @@ class ContextMetric(Base):
         Index("ix_context_metrics_session_created", "session_id", "created_at"),
         Index("ix_context_metrics_type_created", "metric_type", "created_at"),
     )
+
+
+# Legal document categories for concursos RAG system
+LEGAL_CATEGORIES = [
+    "legal_legislacao",  # Legislação (CP, CF, CPC, leis especiais)
+    "legal_doutrina",     # Doutrina (livros, artigos acadêmicos)
+    "legal_questoes",     # Questões comentadas (CESPE, FCC, etc)
+    "legal_jurisprudencia",  # Jurisprudência (STF, STJ, súmulas)
+]
