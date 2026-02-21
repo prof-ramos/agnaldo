@@ -10,13 +10,13 @@ This package provides memory tiers for storing and retrieving knowledge:
 
 from src.memory.archival import ArchivalMemory
 from src.memory.core import CoreMemory
+from src.memory.manager import MemoryContext, MemoryManager
 from src.memory.recall import RecallMemory
-from src.memory.manager import MemoryManager, MemoryContext
 
 __all__ = [
-    "CoreMemory",
-    "RecallMemory",
     "ArchivalMemory",
-    "MemoryManager",
+    "CoreMemory",
     "MemoryContext",
+    "MemoryManager",
+    "RecallMemory",
 ]

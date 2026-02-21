@@ -1,91 +1,117 @@
-"""Unified Memory Manager for Agnaldo.
+"""Gerenciador de Memória Unificado para Agnaldo.
 
-This module provides a unified facade for managing all three memory tiers
-(Core, Recall, Archival) and Knowledge Graph integration.
+Este módulo fornece uma fachada unificada para gerenciar os três tiers de memória
+(Núcleo, Recordação, Arquivo) e integração com o Grafo de Conhecimento.
 
-Features:
-- Unified interface for all memory tiers
-- Automatic context retrieval for prompts
-- Priority-based memory selection
-- Knowledge graph integration
-- Token budget management
+Funcionalidades:
+- Interface unificada para todos os tiers de memória
+- Recuperação automática de contexto para prompts
+- Seleção baseada em prioridade
+- Integração com grafo de conhecimento
+- Gerenciamento de orçamento de tokens
 """
 
 import asyncio
-from datetime import datetime, timezone
+import hashlib
 from typing import Any
 
 from loguru import logger
 from openai import AsyncOpenAI
+from tiktoken import encoding_for_model
 
-from src.config.settings import get_settings
 from src.exceptions import DatabaseError, MemoryServiceError
+from src.knowledge.graph import KnowledgeGraph
 from src.memory.archival import ArchivalMemory
 from src.memory.core import CoreMemory
 from src.memory.recall import RecallMemory
-from src.knowledge.graph import KnowledgeGraph
 from src.schemas.memory import MemoryStats
+
+# Tabelas permitidas para consulta de contagem (prevenção de SQL injection)
+_ALLOWED_COUNT_TABLES = frozenset({"recall_memories", "archival_memories"})
+
+
+def redact_user_id(user_id: str) -> str:
+    """Retorna uma representação não reversível do user_id para uso em logs.
+
+    Args:
+        user_id: Identificador original do usuário.
+
+    Returns:
+        Prefixo de 8 caracteres do hash SHA-256 do user_id.
+    """
+    return "user:" + hashlib.sha256(user_id.encode()).hexdigest()[:8]
 
 
 class MemoryContext:
-    """Context object containing retrieved memories from all tiers.
+    """Objeto de contexto contendo memórias recuperadas de todos os tiers.
 
     Attributes:
-        core: Core memory key-value pairs.
-        recall: Recent memories from semantic search.
-        archival: Historical memories from metadata search.
-        graph: Knowledge graph nodes and relationships.
-        total_tokens: Estimated total tokens in context.
+        core: Pares chave-valor da memória core.
+        recall: Memórias recentes obtidas por busca semântica.
+        archival: Memórias históricas obtidas por busca de metadados.
+        graph: Nós e relacionamentos do grafo de conhecimento.
+        total_tokens: Total de tokens no contexto.
     """
 
     def __init__(self) -> None:
-        """Initialize empty context."""
+        """Inicializa contexto vazio."""
         self.core: dict[str, str] = {}
         self.recall: list[dict[str, Any]] = []
         self.archival: list[dict[str, Any]] = []
         self.graph: list[dict[str, Any]] = []
         self.total_tokens: int = 0
 
+        # Encoder tiktoken para contagem exata de tokens
+        try:
+            self._encoding = encoding_for_model("gpt-4o")
+        except Exception:
+            import tiktoken
+
+            self._encoding = tiktoken.get_encoding("cl100k_base")
+
     def to_prompt_section(self, max_tokens: int = 1500) -> str:
-        """Convert context to a prompt section.
+        """Converte o contexto em uma seção de prompt.
 
         Args:
-            max_tokens: Maximum tokens to include (approximate).
+            max_tokens: Número máximo de tokens a incluir.
 
         Returns:
-            Formatted string for prompt injection.
+            String formatada para injeção no prompt.
         """
         sections = []
         current_tokens = 0
 
-        # Core Memory - Always include if available
+        # Memória Core - Incluir sempre que disponível
         if self.core:
             core_text = "## Fatos Importantes\n"
             for key, value in self.core.items():
                 line = f"- {key}: {value}\n"
-                estimated_tokens = len(line.split()) * 1.3  # Rough estimate
-                if current_tokens + estimated_tokens > max_tokens:
+                line_tokens = len(self._encoding.encode(line))
+                if current_tokens + line_tokens > max_tokens:
                     break
                 core_text += line
-                current_tokens += estimated_tokens
+                current_tokens += line_tokens
             sections.append(core_text)
 
-        # Recall Memory - Recent relevant conversations
+        # Memória Recall - Conversas recentes relevantes
         if self.recall and current_tokens < max_tokens:
             recall_text = "## Conversas Relevantes\n"
             for item in self.recall:
                 content = item.get("content", "")
                 similarity = item.get("similarity", 0)
-                line = f"- [Relevância: {similarity:.0%}] {content[:200]}{'...' if len(content) > 200 else ''}\n"
-                estimated_tokens = len(line.split()) * 1.3
-                if current_tokens + estimated_tokens > max_tokens:
+                line = (
+                    f"- [Relevância: {similarity:.0%}] "
+                    f"{content[:200]}{'...' if len(content) > 200 else ''}\n"
+                )
+                line_tokens = len(self._encoding.encode(line))
+                if current_tokens + line_tokens > max_tokens:
                     break
                 recall_text += line
-                current_tokens += estimated_tokens
-            if len(recall_text) > 30:  # More than just header
+                current_tokens += line_tokens
+            if len(recall_text) > 30:  # Mais do que apenas o cabeçalho
                 sections.append(recall_text)
 
-        # Knowledge Graph - Related concepts
+        # Grafo de Conhecimento - Conceitos relacionados
         if self.graph and current_tokens < max_tokens:
             graph_text = "## Conhecimentos Relacionados\n"
             for item in self.graph:
@@ -93,27 +119,27 @@ class MemoryContext:
                 node_type = item.get("node_type", "")
                 similarity = item.get("similarity", 0)
                 line = f"- {label} ({node_type}) [Similaridade: {similarity:.0%}]\n"
-                estimated_tokens = len(line.split()) * 1.3
-                if current_tokens + estimated_tokens > max_tokens:
+                line_tokens = len(self._encoding.encode(line))
+                if current_tokens + line_tokens > max_tokens:
                     break
                 graph_text += line
-                current_tokens += estimated_tokens
-            if len(graph_text) > 35:  # More than just header
+                current_tokens += line_tokens
+            if len(graph_text) > 35:  # Mais do que apenas o cabeçalho
                 sections.append(graph_text)
 
-        # Archival Memory - Historical context (lowest priority)
-        if self.archival and current_tokens < max_tokens * 0.8:  # Only use 80% of budget
+        # Memória Archival - Contexto histórico (prioridade mais baixa)
+        if self.archival and current_tokens < max_tokens * 0.8:  # Utilizar apenas 80% do orçamento
             archival_text = "## Histórico Relevante\n"
             for item in self.archival:
                 content = item.get("content", "")
                 source = item.get("source", "unknown")
                 line = f"- [{source}] {content[:150]}{'...' if len(content) > 150 else ''}\n"
-                estimated_tokens = len(line.split()) * 1.3
-                if current_tokens + estimated_tokens > max_tokens:
+                line_tokens = len(self._encoding.encode(line))
+                if current_tokens + line_tokens > max_tokens:
                     break
                 archival_text += line
-                current_tokens += estimated_tokens
-            if len(archival_text) > 25:  # More than just header
+                current_tokens += line_tokens
+            if len(archival_text) > 25:  # Mais do que apenas o cabeçalho
                 sections.append(archival_text)
 
         if not sections:
@@ -123,10 +149,10 @@ class MemoryContext:
 
 
 class MemoryManager:
-    """Unified manager for all memory tiers and knowledge graph.
+    """Gerenciador unificado para todos os tiers de memória e grafo de conhecimento.
 
-    Provides a single interface for memory operations and automatic
-    context retrieval with token budget management.
+    Fornece uma interface única para operações de memória e recuperação
+    automática de contexto com gerenciamento de orçamento de tokens.
     """
 
     def __init__(
@@ -143,26 +169,26 @@ class MemoryManager:
         graph_similarity_threshold: float = 0.7,
         context_max_tokens: int = 1500,
     ) -> None:
-        """Initialize the Memory Manager.
+        """Inicializa o Gerenciador de Memória.
 
         Args:
-            user_id: User identifier for memory isolation.
-            db_pool: Database connection pool (asyncpg).
-            openai_client: OpenAI client for embeddings.
-            core_max_items: Maximum items in core memory.
-            core_max_tokens: Maximum tokens in core memory.
-            recall_search_limit: Maximum recall results to retrieve.
-            recall_similarity_threshold: Minimum similarity for recall search.
-            archival_search_limit: Maximum archival results to retrieve.
-            graph_search_limit: Maximum graph nodes to retrieve.
-            graph_similarity_threshold: Minimum similarity for graph search.
-            context_max_tokens: Maximum tokens in generated context.
+            user_id: Identificador do usuário para isolamento de memória.
+            db_pool: Pool de conexão com o banco de dados (asyncpg).
+            openai_client: Cliente OpenAI para geração de embeddings.
+            core_max_items: Número máximo de itens na memória core.
+            core_max_tokens: Número máximo de tokens na memória core.
+            recall_search_limit: Número máximo de resultados a recuperar da recall.
+            recall_similarity_threshold: Similaridade mínima para busca recall.
+            archival_search_limit: Número máximo de resultados a recuperar do archival.
+            graph_search_limit: Número máximo de nós a recuperar do grafo.
+            graph_similarity_threshold: Similaridade mínima para busca no grafo.
+            context_max_tokens: Número máximo de tokens no contexto gerado.
         """
         self.user_id = user_id
         self.db_pool = db_pool
         self.openai = openai_client
 
-        # Configuration
+        # Configuração dos tiers de memória
         self.core_max_items = core_max_items
         self.core_max_tokens = core_max_tokens
         self.recall_search_limit = recall_search_limit
@@ -172,17 +198,17 @@ class MemoryManager:
         self.graph_similarity_threshold = graph_similarity_threshold
         self.context_max_tokens = context_max_tokens
 
-        # Lazy-loaded memory instances
+        # Instâncias de memória com carregamento lazy
         self._core: CoreMemory | None = None
         self._recall: RecallMemory | None = None
         self._archival: ArchivalMemory | None = None
         self._graph: KnowledgeGraph | None = None
 
-        logger.debug(f"MemoryManager initialized for user {user_id}")
+        logger.debug(f"MemoryManager inicializado para {redact_user_id(user_id)}")
 
     @property
     def core(self) -> CoreMemory:
-        """Get or create CoreMemory instance."""
+        """Obtém ou cria instância de CoreMemory."""
         if self._core is None:
             self._core = CoreMemory(
                 user_id=self.user_id,
@@ -194,7 +220,7 @@ class MemoryManager:
 
     @property
     def recall(self) -> RecallMemory:
-        """Get or create RecallMemory instance."""
+        """Obtém ou cria instância de RecallMemory."""
         if self._recall is None:
             self._recall = RecallMemory(
                 user_id=self.user_id,
@@ -205,7 +231,7 @@ class MemoryManager:
 
     @property
     def archival(self) -> ArchivalMemory:
-        """Get or create ArchivalMemory instance."""
+        """Obtém ou cria instância de ArchivalMemory."""
         if self._archival is None:
             self._archival = ArchivalMemory(
                 user_id=self.user_id,
@@ -215,7 +241,7 @@ class MemoryManager:
 
     @property
     def graph(self) -> KnowledgeGraph:
-        """Get or create KnowledgeGraph instance."""
+        """Obtém ou cria instância de KnowledgeGraph."""
         if self._graph is None:
             self._graph = KnowledgeGraph(
                 user_id=self.user_id,
@@ -233,23 +259,23 @@ class MemoryManager:
         include_graph: bool = True,
         extracted_topics: list[str] | None = None,
     ) -> MemoryContext:
-        """Retrieve context from all memory tiers for prompt injection.
+        """Recupera contexto de todos os tiers de memória para injeção no prompt.
 
         Args:
-            query: The user's query to search for relevant context.
-            include_core: Whether to include core memory.
-            include_recall: Whether to include recall memory search.
-            include_archival: Whether to include archival memory search.
-            include_graph: Whether to include knowledge graph search.
-            extracted_topics: Optional list of extracted topics for targeted search.
+            query: Consulta do usuário para busca de contexto relevante.
+            include_core: Se deve incluir a memória core.
+            include_recall: Se deve incluir busca na memória recall.
+            include_archival: Se deve incluir busca na memória archival.
+            include_graph: Se deve incluir busca no grafo de conhecimento.
+            extracted_topics: Lista opcional de tópicos extraídos para busca direcionada.
 
         Returns:
-            MemoryContext object with retrieved memories.
+            Objeto MemoryContext com as memórias recuperadas.
         """
         context = MemoryContext()
 
         try:
-            # Run searches in parallel for efficiency
+            # Executar buscas em paralelo para eficiência
             tasks = []
 
             if include_core:
@@ -265,28 +291,39 @@ class MemoryManager:
                 tasks.append(self._retrieve_graph_context(query, context))
 
             if tasks:
-                await asyncio.gather(*tasks, return_exceptions=True)
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                # Registrar e repassar exceções para não suprimir silenciosamente
+                first_exc: Exception | None = None
+                for result in results:
+                    if isinstance(result, Exception):
+                        logger.warning(
+                            f"Falha em sub-tarefa de recuperação de contexto: {result}"
+                        )
+                        if first_exc is None:
+                            first_exc = result
+                if first_exc is not None:
+                    raise first_exc
 
             logger.info(
-                f"Retrieved context for query: core={len(context.core)}, "
+                f"Contexto recuperado: core={len(context.core)}, "
                 f"recall={len(context.recall)}, archival={len(context.archival)}, "
                 f"graph={len(context.graph)}"
             )
 
         except Exception as e:
-            logger.warning(f"Failed to retrieve full context: {e}")
+            logger.warning(f"Falha ao recuperar contexto completo: {e}")
 
         return context
 
     async def _retrieve_core_context(self, context: MemoryContext) -> None:
-        """Retrieve core memory context."""
+        """Recupera contexto da memória core."""
         try:
             context.core = await self.core.get_all()
         except Exception as e:
-            logger.warning(f"Failed to retrieve core memory: {e}")
+            logger.warning(f"Falha ao recuperar memória core: {e}")
 
     async def _retrieve_recall_context(self, query: str, context: MemoryContext) -> None:
-        """Retrieve recall memory context via semantic search."""
+        """Recupera contexto da memória recall via busca semântica."""
         try:
             results = await self.recall.search(
                 query=query,
@@ -295,38 +332,51 @@ class MemoryManager:
             )
             context.recall = results
         except Exception as e:
-            logger.warning(f"Failed to retrieve recall memory: {e}")
+            logger.warning(f"Falha ao recuperar memória recall: {e}")
 
     async def _retrieve_archival_context(
         self, topics: list[str], context: MemoryContext
     ) -> None:
-        """Retrieve archival memory context by metadata."""
+        """Recupera contexto da memória archival por metadados e conteúdo em paralelo."""
         try:
-            # Search by topic in metadata
-            for topic in topics[:2]:  # Limit to top 2 topics
-                results = await self.archival.search_by_metadata(
-                    filters={"topic": topic},
-                    limit=self.archival_search_limit,
+            # Criar tarefas para busca por metadados dos dois primeiros tópicos e por conteúdo
+            gather_tasks = []
+            for topic in topics[:2]:
+                gather_tasks.append(
+                    self.archival.search_by_metadata(
+                        filters={"topic": topic},
+                        limit=self.archival_search_limit,
+                    )
                 )
-                context.archival.extend(results)
-
-            # Also do content search for first topic
             if topics:
-                content_results = await self.archival.search_by_content(
-                    query=topics[0],
-                    limit=self.archival_search_limit,
+                # Busca por conteúdo usando o primeiro tópico
+                gather_tasks.append(
+                    self.archival.search_by_content(
+                        query=topics[0],
+                        limit=self.archival_search_limit,
+                    )
                 )
-                # Deduplicate by memory_id
-                existing_ids = {r.get("memory_id") for r in context.archival}
-                for result in content_results:
-                    if result.get("memory_id") not in existing_ids:
-                        context.archival.append(result)
+
+            # Executar todas as buscas archival em paralelo
+            all_results = await asyncio.gather(*gather_tasks, return_exceptions=True)
+
+            # Mesclar resultados deduplicando por memory_id
+            existing_ids: set[str | None] = set()
+            for result in all_results:
+                if isinstance(result, Exception):
+                    logger.warning(f"Falha em busca archival: {result}")
+                    continue
+                for item in result:
+                    memory_id = item.get("memory_id")
+                    if memory_id not in existing_ids:
+                        existing_ids.add(memory_id)
+                        context.archival.append(item)
 
         except Exception as e:
-            logger.warning(f"Failed to retrieve archival memory: {e}")
+            logger.warning(f"Falha ao recuperar memória archival: {e}")
 
     async def _retrieve_graph_context(self, query: str, context: MemoryContext) -> None:
-        """Retrieve knowledge graph context."""
+        """Recupera contexto do grafo de conhecimento."""
         try:
             results = await self.graph.search_nodes(
                 query=query,
@@ -335,7 +385,7 @@ class MemoryManager:
             )
             context.graph = results
         except Exception as e:
-            logger.warning(f"Failed to retrieve graph context: {e}")
+            logger.warning(f"Falha ao recuperar contexto do grafo: {e}")
 
     async def store_interaction(
         self,
@@ -346,18 +396,18 @@ class MemoryManager:
         store_in_graph: bool = False,
         extract_entities: bool = False,
     ) -> dict[str, Any]:
-        """Store an interaction in appropriate memory tiers.
+        """Armazena uma interação nos tiers de memória apropriados.
 
         Args:
-            user_message: The user's message.
-            assistant_response: The assistant's response.
-            importance: Importance score (0.0-1.0).
-            store_in_recall: Whether to store in recall memory.
-            store_in_graph: Whether to extract and store entities in graph.
-            extract_entities: Whether to extract entities (requires LLM).
+            user_message: Mensagem do usuário.
+            assistant_response: Resposta do assistente.
+            importance: Pontuação de importância (0.0-1.0).
+            store_in_recall: Se deve armazenar na memória recall.
+            store_in_graph: Se deve extrair e armazenar entidades no grafo.
+            extract_entities: Se deve extrair entidades (requer LLM).
 
         Returns:
-            Dict with IDs of created memories.
+            Dict com IDs das memórias criadas.
         """
         result: dict[str, Any] = {
             "recall_id": None,
@@ -365,7 +415,7 @@ class MemoryManager:
         }
 
         try:
-            # Store in recall memory
+            # Armazenar na memória recall
             if store_in_recall:
                 content = f"User: {user_message}\nAssistant: {assistant_response}"
                 result["recall_id"] = await self.recall.add(
@@ -373,14 +423,16 @@ class MemoryManager:
                     importance=importance,
                 )
 
-            # Extract entities and store in knowledge graph
+            # Extrair entidades e armazenar no grafo de conhecimento
             if store_in_graph and extract_entities:
-                # Note: Entity extraction would require LLM call
-                # This is a placeholder for future implementation
-                logger.debug("Entity extraction for graph storage not yet implemented")
+                # Nota: Extração de entidades requer chamada LLM
+                # Placeholder para implementação futura
+                logger.debug(
+                    "Extração de entidades para armazenamento no grafo ainda não implementada"
+                )
 
         except Exception as e:
-            logger.warning(f"Failed to store interaction: {e}")
+            logger.warning(f"Falha ao armazenar interação: {e}")
 
         return result
 
@@ -390,42 +442,43 @@ class MemoryManager:
         value: str,
         importance: float = 0.7,
     ) -> str | None:
-        """Store a fact in core memory.
+        """Armazena um fato na memória core.
 
         Args:
-            key: Unique key for the fact.
-            value: The fact value.
-            importance: Importance score (0.0-1.0).
+            key: Chave única para o fato.
+            value: Valor do fato.
+            importance: Pontuação de importância (0.0-1.0).
 
         Returns:
-            Memory ID or None if failed.
+            ID da memória ou None em caso de falha.
         """
         try:
             item = await self.core.add(key, value, importance=importance)
             return item.id
         except Exception as e:
-            logger.warning(f"Failed to store core fact: {e}")
+            logger.warning(f"Falha ao armazenar fato core: {e}")
             return None
 
     async def get_stats(self) -> MemoryStats:
-        """Get statistics for all memory tiers.
+        """Obtém estatísticas de todos os tiers de memória.
 
         Returns:
-            MemoryStats object with counts and token estimates.
+            Objeto MemoryStats com contagens e estimativas de tokens.
         """
         try:
-            # Get stats from each tier
+            # Obter estatísticas do tier core
             core_stats = await self.core.get_stats()
-            graph_stats = await self.graph.get_stats()
 
-            # Recall and archival don't have get_stats methods, estimate from DB
+            # Recall e archival não possuem get_stats; estimar via banco de dados
             recall_count = await self._count_table("recall_memories")
             archival_count = await self._count_table("archival_memories")
 
-            # Estimate tokens (rough approximation)
-            core_tokens = int(core_stats.get("avg_importance", 0) * core_stats.get("item_count", 0) * 50)
-            recall_tokens = recall_count * 100  # Assume avg 100 tokens per recall
-            archival_tokens = archival_count * 200  # Assume avg 200 tokens per archival
+            # Estimativa de tokens por tier com base na contagem de itens
+            core_tokens = core_stats.get("avg_tokens_per_item", 50) * core_stats.get(
+                "item_count", 0
+            )
+            recall_tokens = recall_count * 100  # Média estimada de 100 tokens por memória recall
+            archival_tokens = archival_count * 200  # Média estimada de 200 tokens por memória archival
 
             return MemoryStats(
                 core_count=core_stats.get("item_count", 0),
@@ -439,11 +492,28 @@ class MemoryManager:
             )
 
         except Exception as e:
-            logger.warning(f"Failed to get memory stats: {e}")
+            logger.warning(f"Falha ao obter estatísticas de memória: {e}")
             return MemoryStats()
 
     async def _count_table(self, table_name: str) -> int:
-        """Count rows in a table for the current user."""
+        """Conta registros em uma tabela para o usuário atual.
+
+        Valida o nome da tabela contra uma lista de permissão para
+        prevenir SQL injection.
+
+        Args:
+            table_name: Nome da tabela a contar (deve estar na lista de permissão).
+
+        Returns:
+            Número de registros encontrados ou 0 em caso de erro ou tabela não permitida.
+        """
+        if table_name not in _ALLOWED_COUNT_TABLES:
+            logger.warning(
+                f"Tentativa de consulta em tabela não permitida: {table_name!r}. "
+                f"Permitidas: {sorted(_ALLOWED_COUNT_TABLES)}"
+            )
+            return 0
+
         try:
             async with self.db_pool.acquire() as conn:
                 count = await conn.fetchval(
@@ -452,38 +522,40 @@ class MemoryManager:
                 )
                 return count or 0
         except Exception as e:
-            logger.warning(f"Failed to count {table_name}: {e}")
+            logger.warning(f"Falha ao contar registros em {table_name}: {e}")
             return 0
 
-    async def compress_session(self, session_id: str, summary: str | None = None) -> dict[str, Any]:
-        """Compress all memories from a session in archival memory.
+    async def compress_session(
+        self, session_id: str, summary: str | None = None
+    ) -> dict[str, Any]:
+        """Comprime todas as memórias de uma sessão na memória archival.
 
         Args:
-            session_id: The session identifier.
-            summary: Optional pre-generated summary.
+            session_id: Identificador da sessão.
+            summary: Resumo pré-gerado opcional.
 
         Returns:
-            Compression result with stats.
+            Resultado da compressão com estatísticas.
         """
         try:
             result = await self.archival.compress(session_id, summary)
-            logger.info(f"Compressed session {session_id}: {result}")
+            logger.info(f"Sessão {session_id} comprimida: {result}")
             return result
         except Exception as e:
-            logger.warning(f"Failed to compress session: {e}")
+            logger.warning(f"Falha ao comprimir sessão: {e}")
             return {"compressed_memory_id": None, "original_count": 0, "compressed_count": 0}
 
     async def clear_all(self, confirm: bool = False) -> int:
-        """Clear all memories for the user across all tiers.
+        """Limpa todas as memórias do usuário em todos os tiers.
 
         Args:
-            confirm: Must be True to actually clear.
+            confirm: Deve ser True para efetuar a limpeza.
 
         Returns:
-            Total number of items cleared.
+            Total de itens removidos.
 
         Warning:
-            This is a destructive operation!
+            Esta é uma operação destrutiva!
         """
         if not confirm:
             raise MemoryServiceError(
@@ -494,32 +566,38 @@ class MemoryManager:
         total_cleared = 0
 
         try:
-            # Clear each tier
+            # Limpar tier core
             total_cleared += await self.core.clear()
 
-            # Clear recall and archival via direct DB operations
+            # Limpar recall e archival via operações diretas no banco de dados
             async with self.db_pool.acquire() as conn:
-                recall_count = await conn.fetchval(
-                    "DELETE FROM recall_memories WHERE user_id = $1 RETURNING COUNT(*)",
+                # Deletar memórias recall; asyncpg retorna status "DELETE N"
+                recall_status = await conn.execute(
+                    "DELETE FROM recall_memories WHERE user_id = $1",
                     self.user_id,
                 )
-                total_cleared += recall_count or 0
+                recall_count = int(recall_status.split()[-1])
+                total_cleared += recall_count
 
-                archival_count = await conn.fetchval(
-                    "DELETE FROM archival_memories WHERE user_id = $1 RETURNING COUNT(*)",
+                archival_status = await conn.execute(
+                    "DELETE FROM archival_memories WHERE user_id = $1",
                     self.user_id,
                 )
-                total_cleared += archival_count or 0
+                archival_count = int(archival_status.split()[-1])
+                total_cleared += archival_count
 
-                # Clear graph nodes (edges cascade)
-                graph_count = await conn.fetchval(
-                    "DELETE FROM knowledge_nodes WHERE user_id = $1 RETURNING COUNT(*)",
+                # Limpar nós do grafo (arestas são removidas em cascata)
+                graph_status = await conn.execute(
+                    "DELETE FROM knowledge_nodes WHERE user_id = $1",
                     self.user_id,
                 )
-                total_cleared += graph_count or 0
+                graph_count = int(graph_status.split()[-1])
+                total_cleared += graph_count
 
-            logger.warning(f"Cleared {total_cleared} memories for user {self.user_id}")
+            logger.warning(
+                f"Removidas {total_cleared} memórias para {redact_user_id(self.user_id)}"
+            )
             return total_cleared
 
         except Exception as e:
-            raise DatabaseError(f"Failed to clear memories: {e}", operation="delete") from e
+            raise DatabaseError(f"Falha ao limpar memórias: {e}", operation="delete") from e
