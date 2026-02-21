@@ -5,12 +5,12 @@ memories using vector embeddings and cosine similarity search.
 """
 
 import hashlib
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
+import tiktoken
 from loguru import logger
 from openai import AsyncOpenAI
-import tiktoken
 
 from src.config.settings import get_settings
 from src.exceptions import DatabaseError, EmbeddingGenerationError, MemoryServiceError
@@ -62,8 +62,8 @@ class RecallMemory:
         if value is None:
             return None
         if value.tzinfo is None:
-            return value.replace(tzinfo=UTC)
-        return value.astimezone(UTC)
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
 
     def _truncate_for_embedding(self, text: str, max_tokens: int = 8191) -> str:
         """Truncate text by token count (not characters) for embedding models."""

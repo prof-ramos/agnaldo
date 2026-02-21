@@ -2,7 +2,6 @@
 
 import asyncio
 import time
-from typing import Optional
 
 from loguru import logger
 
@@ -28,7 +27,7 @@ class RateLimiter:
         self._bucket_ttl_seconds = 600
         self._max_channel_buckets = 5000
 
-    async def acquire(self, channel_id: Optional[str] = None) -> None:
+    async def acquire(self, channel_id: str | None = None) -> None:
         """
         Acquire a token from the bucket.
 
@@ -95,7 +94,7 @@ class RateLimiter:
         for channel_id in to_remove:
             self.channel_buckets.pop(channel_id, None)
 
-    def get_available_tokens(self, channel_id: Optional[str] = None) -> dict[str, float]:
+    def get_available_tokens(self, channel_id: str | None = None) -> dict[str, float]:
         """
         Get available tokens for debugging.
 

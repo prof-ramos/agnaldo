@@ -9,6 +9,7 @@ from typing import Any, TypeVar
 
 from loguru import logger
 from supabase import Client, create_client
+
 from src.config.settings import get_settings
 from src.exceptions import DatabaseError, SupabaseConnectionError
 

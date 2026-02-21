@@ -1,12 +1,12 @@
 """Integration tests for memory management."""
 
 from datetime import datetime, timezone
-
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from src.memory.core import CoreMemory
+import pytest
+
 from src.memory.archival import ArchivalMemory
+from src.memory.core import CoreMemory
 
 
 def _build_mock_pool(mock_conn: AsyncMock) -> MagicMock:

@@ -7,7 +7,7 @@ including core, recall, and archival memory items with search and stats.
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -49,7 +49,7 @@ class CoreMemoryItem(BaseModel):
     access_count: int = Field(
         default=0, ge=0, description="Number of times accessed"
     )
-    last_accessed: Optional[datetime] = Field(
+    last_accessed: datetime | None = Field(
         None, description="Timestamp of last access"
     )
     created_at: datetime = Field(
@@ -91,11 +91,11 @@ class RecallMemoryItem(BaseModel):
     id: str = Field(..., description="Unique identifier for the memory item")
     content: str = Field(..., description="The content stored in recall memory")
     conversation_id: str = Field(..., description="Associated conversation identifier")
-    message_id: Optional[str] = Field(None, description="Original message identifier")
+    message_id: str | None = Field(None, description="Original message identifier")
     timestamp: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc), description="Original content timestamp"
     )
-    embedding: Optional[list[float]] = Field(
+    embedding: list[float] | None = Field(
         None, description="Vector embedding for semantic search"
     )
     relevance_score: float = Field(
@@ -151,7 +151,7 @@ class ArchivalMemoryItem(BaseModel):
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc), description="Archive timestamp"
     )
-    last_accessed: Optional[datetime] = Field(None, description="Timestamp of last access")
+    last_accessed: datetime | None = Field(None, description="Timestamp of last access")
 
     model_config = {"use_enum_values": True, "json_schema_extra": {
         "examples": [

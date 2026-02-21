@@ -9,13 +9,13 @@ This module provides the central ContextManager that integrates:
 
 import asyncio
 from datetime import datetime, timezone
-from typing import Any, AsyncIterator
+from typing import Any
 
 from loguru import logger
 
-from src.context.offloading import ContextOffloading
 from src.context.monitor import ContextMonitor, ContextMonitorMetrics
-from src.context.reducer import ContextReducer, ContextMode
+from src.context.offloading import ContextOffloading
+from src.context.reducer import ContextMode, ContextReducer
 
 
 class ContextManager:
@@ -177,10 +177,12 @@ class ContextManager:
                     await self.monitor.record_cache_miss(session_id)
 
                 if content:
-                    context.append({
-                        "role": "system",
-                        "content": f"[Offloaded context retrieved: {content[:200]}...]",
-                    })
+                    context.append(
+                        {
+                            "role": "system",
+                            "content": f"[Offloaded context retrieved: {content[:200]}...]",
+                        }
+                    )
 
         return context
 
@@ -211,7 +213,6 @@ class ContextManager:
         # Count messages by type
         user_messages = sum(1 for m in messages if m["role"] == "user")
         assistant_messages = sum(1 for m in messages if m["role"] == "assistant")
-        system_messages = sum(1 for m in messages if m["role"] == "system")
 
         # Get first and last messages
         first_user = next((m["content"] for m in messages if m["role"] == "user"), None)

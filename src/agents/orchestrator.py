@@ -15,11 +15,12 @@ from collections import OrderedDict
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from loguru import logger
 from openai import AsyncOpenAI
 
+from src.agents.study_agent import StudyAgent, get_study_agent
 from src.config.settings import get_settings
 from src.exceptions import AgentCommunicationError
 from src.intent.classifier import IntentClassifier
@@ -45,6 +46,9 @@ class AgentType(str, Enum):
 
     OSINT = "osint"
     """OSINT tools and research."""
+
+    STUDY = "study"
+    """Rigorous RAG-based study agent for exam preparation."""
 
 
 class AgentState(str, Enum):
@@ -311,6 +315,10 @@ class AgentOrchestrator:
         # Cache LRU de MemoryManager por usuário para reutilizar instâncias lazy-loaded
         self._memory_managers: OrderedDict[str, MemoryManager] = OrderedDict()
         self._memory_manager_cache_max = 100  # Limite de entradas no cache (eviction LRU)
+
+        # Study agent (RAG rigoroso para concursos)
+        # Inicializado quando db_pool estiver disponível
+        self.study_agent: StudyAgent | None = None
 
         logger.info("AgentOrchestrator initialized")
 
@@ -737,7 +745,9 @@ class AgentOrchestrator:
         logger.info(f"Created approval request {request_id} for action {action_id}")
         return request_id
 
-    async def check_approval(self, request_id: str) -> str:
+    async def check_approval(
+        self, request_id: str
+    ) -> Literal["pending", "approved", "denied", "timeout", "not_found"]:
         """Check approval status.
 
         Args:
@@ -747,13 +757,15 @@ class AgentOrchestrator:
             Status: 'pending', 'approved', 'denied', 'timeout'.
         """
         import time
+        from typing import cast
 
         approval = self.pending_approvals.get(request_id)
         if not approval:
             return "not_found"
 
-        if approval["status"] != "pending":
-            return approval["status"]
+        status = cast(Literal["pending", "approved", "denied"], approval["status"])
+        if status != "pending":
+            return status
 
         elapsed = time.time() - approval["created_at"]
         if elapsed > self.approval_timeout_seconds:
@@ -780,6 +792,24 @@ class AgentOrchestrator:
         approval["status"] = "approved" if approved else "denied"
         logger.info(f"Approval {request_id} {'approved' if approved else 'denied'}")
         return True
+
+    def setup_study_agent(self, db_pool) -> StudyAgent:
+        """Configura o StudyAgent com o pool de conexões do banco.
+
+        Args:
+            db_pool: Pool de conexões PostgreSQL.
+
+        Returns:
+            Instância configurada do StudyAgent.
+        """
+        if self.study_agent is None:
+            self.study_agent = get_study_agent(
+                db_pool=db_pool,
+                model=self.model,
+                temperature=0.0,  # Determinismo máximo para RAG rigoroso
+            )
+            logger.info("StudyAgent configurado no AgentOrchestrator")
+        return self.study_agent
 
     async def get_stats(self) -> dict[str, Any]:
         """Get orchestrator and agent statistics."""

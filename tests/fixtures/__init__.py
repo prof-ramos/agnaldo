@@ -34,8 +34,8 @@ from tests.fixtures.discord import (
 )
 from tests.fixtures.factories import (
     create_test_agent_message,
-    create_test_discord_message,
     create_test_db_pool,
+    create_test_discord_message,
     create_test_graph_edge,
     create_test_graph_node,
     create_test_memory_item,

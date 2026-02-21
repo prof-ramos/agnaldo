@@ -1,9 +1,7 @@
 """Centralized configuration using Pydantic Settings."""
 
-import os
 from enum import Enum
 from threading import Lock
-from typing import List
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -11,6 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Environment(str, Enum):
     """Application environment options."""
+
     DEV = "dev"
     PROD = "prod"
 
@@ -30,9 +29,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
     # Discord configuration
-    DISCORD_INTENTS: List[str] = Field(
-        default=["message_content", "guild_messages", "dm_messages"]
-    )
+    DISCORD_INTENTS: list[str] = Field(default=["message_content", "guild_messages", "dm_messages"])
 
     # OpenAI configuration
     OPENAI_CHAT_MODEL: str = "gpt-4o"
@@ -99,3 +96,14 @@ def get_settings() -> Settings:
             if _settings is None:
                 _settings = Settings()
     return _settings
+
+
+def reset_settings() -> None:
+    """Reset the singleton Settings instance.
+
+    Intended for use in tests only. Clears the cached settings so the
+    next call to ``get_settings()`` creates a fresh instance.
+    """
+    global _settings
+    with _settings_lock:
+        _settings = None

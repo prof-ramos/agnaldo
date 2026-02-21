@@ -2,11 +2,10 @@
 
 from typing import Any
 
-from discord import Intents
 from discord.ext.commands import Bot
-
 from loguru import logger
 
+from discord import Intents, Message
 from src.config.settings import get_settings
 from src.discord.commands import setup_commands
 from src.discord.events import setup_events
@@ -79,9 +78,6 @@ class AgnaldoBot(Bot):
         # Ignore empty messages
         if not message.content or not message.content.strip():
             return None
-
-        # Get user ID for memory isolation
-        user_id = str(message.author.id)
 
         # Build context for agent
         context = {

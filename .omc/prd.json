@@ -1,0 +1,81 @@
+{
+  "project": "Agnaldo - Bot RAG para Concursos Públicos",
+  "branchName": "ralph/concursos-rag-mvp",
+  "description": "Transformar Agnaldo em bot especializado em concursos públicos com RAG rigoroso, reutilizando infraestrutura existente (archival_memories, core_memories, pgvector)",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Ingestão de PDFs Jurídicos com PyPDF2",
+      "description": "Como desenvolvedor, quero ingerir PDFs jurídicos (legislação, doutrina) em chunks com embeddings OpenAI para armazenar em archival_memories, possibilitando busca semântica RAG.",
+      "acceptanceCriteria": [
+        "Criar estrutura data/concursos/ com subpastas (legislacao, doutrina, questoes)",
+        "Implementar LegalPDFIngestor em src/knowledge/legal_pdf_ingestor.py",
+        "Extrair texto de PDFs usando PyPDF2",
+        "Chunking com tiktoken (512-1024 tokens, overlap 128)",
+        "Gerar embeddings com OpenAI text-embedding-3-small",
+        "Inserir em archival_memories com category='legal_legislacao'|'legal_doutrina'",
+        "Adicionar constante LEGAL_CATEGORIES em src/database/models.py",
+        "Typecheck passa (mypy)",
+        "Script scripts/ingest_legal_pdfs.py funcional"
+      ],
+      "priority": 1,
+      "passes": true,
+      "files": [
+        "src/knowledge/legal_pdf_ingestor.py",
+        "src/database/models.py",
+        "scripts/ingest_legal_pdfs.py"
+      ]
+    },
+    {
+      "id": "US-002",
+      "title": "StudyAgent com RAG Rigoroso",
+      "description": "Como concurseiro, quero fazer perguntas com !ask e receber respostas técnicas com fontes citadas, minimizando alucinações através de temperatura 0.0 e validação de citações.",
+      "acceptanceCriteria": [
+        "Adicionar AgentType.STUDY='study' ao enum em src/agents/orchestrator.py",
+        "Criar StudyAgent em src/agents/study_agent.py herdando de AgnoAgent",
+        "Configurar temperature=0.0 para determinismo",
+        "Implementar busca semântica em archival_memories (category='legal_*')",
+        "Threshold dinâmico: legislação >= 0.85, doutrina >= 0.75, questões >= 0.80",
+        "Implementar CitationValidator em src/validators/citation_validator.py",
+        "Validar citações com regex (Art. \\d+, Lei \\d+)",
+        "Template de resposta: 📚 Título + Conteúdo + 💡 Didática + 📖 Fonte",
+        "Resposta de incerteza padrão quando similaridade < threshold",
+        "Typecheck passa",
+        "Testes unitários para CitationValidator"
+      ],
+      "priority": 2,
+      "passes": true,
+      "files": [
+        "src/agents/orchestrator.py",
+        "src/agents/study_agent.py",
+        "src/validators/citation_validator.py",
+        "src/intent/router.py"
+      ],
+      "dependencies": ["US-001"]
+    },
+    {
+      "id": "US-003",
+      "title": "Comando !ask e Handler on_message",
+      "description": "Como usuário do Discord, quero usar o comando !ask para fazer perguntas de estudo e receber respostas do StudyAgent, com chat livre funcionando automaticamente para outras mensagens.",
+      "acceptanceCriteria": [
+        "Registrar on_message event em src/discord/events.py",
+        "Implementar handle_ask_command() para processar !ask prefix",
+        "Router direto para StudyAgent (bypass intent classifier)",
+        "Implementar handle_general_message() para chat livre",
+        "Rate limiting 5 req/minuto por usuário (TokenBucket)",
+        "Logs estruturados (timestamp, user_id, question, rag_results, sources, latency)",
+        "Integrar com MessageHandler existente",
+        "Testar com mensagem !ask localmente",
+        "Typecheck passa"
+      ],
+      "priority": 3,
+      "passes": true,
+      "files": [
+        "src/discord/events.py",
+        "src/discord/handlers.py",
+        "src/discord/rate_limiter.py"
+      ],
+      "dependencies": ["US-002"]
+    }
+  ]
+}

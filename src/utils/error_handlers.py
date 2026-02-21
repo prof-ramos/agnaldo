@@ -8,10 +8,11 @@ and standardized error response formatting.
 import asyncio
 import threading
 import time
+from collections.abc import Callable
 from datetime import datetime, timezone
 from enum import Enum
 from functools import wraps
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 import openai
 from loguru import logger
@@ -24,8 +25,8 @@ from tenacity import (
 )
 
 from src.exceptions import (
-    AgnaldoError,
     AgentCommunicationError,
+    AgnaldoError,
     DatabaseError,
     EmbeddingGenerationError,
     IntentClassificationError,
