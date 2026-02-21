@@ -11,6 +11,7 @@ Inspired by OpenClaw techniques:
 """
 
 import asyncio
+from collections import OrderedDict
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from enum import Enum
@@ -19,14 +20,13 @@ from typing import Any, Literal
 from loguru import logger
 from openai import AsyncOpenAI
 
+from src.agents.study_agent import StudyAgent, get_study_agent
 from src.config.settings import get_settings
 from src.exceptions import AgentCommunicationError
 from src.intent.classifier import IntentClassifier
 from src.intent.models import IntentCategory, IntentResult
-from src.memory.core import CoreMemory
-from src.memory.recall import RecallMemory
+from src.memory.manager import MemoryContext, MemoryManager
 from src.schemas.agents import AgentMetrics
-from src.agents.study_agent import StudyAgent, get_study_agent
 
 
 class AgentType(str, Enum):
@@ -149,7 +149,7 @@ class AgnoAgent:
         self,
         message: str,
         context: dict[str, Any] | None = None,
-        memory_context: dict[str, Any] | None = None,
+        memory_context: MemoryContext | dict[str, Any] | None = None,
     ) -> str:
         """Process a message through the agent.
 
@@ -213,8 +213,17 @@ class AgnoAgent:
                 target_agent=self.agent_id,
             ) from e
 
-    def _build_system_prompt(self, memory_context: dict[str, Any] | None) -> str:
-        """Build the system prompt with instructions and memory."""
+    def _build_system_prompt(
+        self, memory_context: dict[str, Any] | MemoryContext | None
+    ) -> str:
+        """Build the system prompt with instructions and memory.
+
+        Args:
+            memory_context: Either a dict (legacy) or MemoryContext object.
+
+        Returns:
+            Formatted system prompt string.
+        """
         parts = []
 
         # Add instructions (SOUL.md personality)
@@ -223,11 +232,19 @@ class AgnoAgent:
 
         # Add memory context if available
         if memory_context:
-            parts.append("\n## Contexto de Memória")
-            if memory_context.get("core"):
-                parts.append(f"Fatos importantes: {memory_context['core']}")
-            if memory_context.get("recent"):
-                parts.append(f"Memórias recentes: {memory_context['recent'][:500]}...")
+            # Support both MemoryContext object and legacy dict format
+            if isinstance(memory_context, MemoryContext):
+                # Use new MemoryContext formatting
+                context_section = memory_context.to_prompt_section(max_tokens=1500)
+                if context_section:
+                    parts.append(context_section)
+            else:
+                # Legacy dict format (backward compatible)
+                parts.append("\n## Contexto de Memória")
+                if memory_context.get("core"):
+                    parts.append(f"Fatos importantes: {memory_context['core']}")
+                if memory_context.get("recent"):
+                    parts.append(f"Memórias recentes: {memory_context['recent'][:500]}...")
 
         return "\n\n".join(parts)
 
@@ -294,6 +311,10 @@ class AgentOrchestrator:
         # Human-in-the-loop
         self.pending_approvals: dict[str, dict[str, Any]] = {}
         self.approval_timeout_seconds = 300
+
+        # Cache LRU de MemoryManager por usuário para reutilizar instâncias lazy-loaded
+        self._memory_managers: OrderedDict[str, MemoryManager] = OrderedDict()
+        self._memory_manager_cache_max = 100  # Limite de entradas no cache (eviction LRU)
 
         # Study agent (RAG rigoroso para concursos)
         # Inicializado quando db_pool estiver disponível
@@ -484,9 +505,11 @@ class AgentOrchestrator:
         agent_id = await self._route_to_agent(intent_result)
 
         # Retrieve memory context if user_id and db_pool provided
-        memory_context: dict[str, Any] | None = None
+        memory_context: MemoryContext | None = None
         if user_id and db_pool:
-            memory_context = await self._retrieve_memory_context(user_id, message, db_pool)
+            memory_context = await self._retrieve_memory_context(
+                user_id, message, db_pool, intent_result=intent_result
+            )
 
         # Get the agent
         agent = self.agents.get(agent_id)
@@ -553,34 +576,95 @@ class AgentOrchestrator:
 
         return selected_agent_id
 
-    async def _retrieve_memory_context(self, user_id: str, query: str, db_pool) -> dict[str, Any]:
-        """Retrieve memory context from all tiers.
+    def _get_memory_manager(self, user_id: str, db_pool) -> MemoryManager:
+        """Retorna um MemoryManager existente para o usuário ou cria e armazena um novo.
 
-        Integrates CoreMemory (fast key-value) with RecallMemory (semantic search)
-        to provide comprehensive context for agent responses.
+        Implementa cache LRU com limite de entradas para evitar crescimento ilimitado.
+        Reutilizar o mesmo MemoryManager preserva as instâncias de memória
+        lazy-loaded (CoreMemory, RecallMemory, ArchivalMemory, KnowledgeGraph).
+
+        Args:
+            user_id: Identificador do usuário para isolamento de memória.
+            db_pool: Pool de conexão com o banco de dados.
+
+        Returns:
+            Instância de MemoryManager para o usuário.
         """
-        context: dict[str, Any] = {}
+        if user_id in self._memory_managers:
+            # Mover para o final (mais recentemente usado)
+            self._memory_managers.move_to_end(user_id)
+            return self._memory_managers[user_id]
 
+        # Criar novo MemoryManager para o usuário
+        manager = MemoryManager(
+            user_id=user_id,
+            db_pool=db_pool,
+            openai_client=self.openai,
+        )
+        self._memory_managers[user_id] = manager
+
+        # Eviction LRU: remover entrada mais antiga se o cache estiver cheio
+        if len(self._memory_managers) > self._memory_manager_cache_max:
+            self._memory_managers.popitem(last=False)
+
+        return manager
+
+    async def _retrieve_memory_context(
+        self, user_id: str, query: str, db_pool, intent_result: IntentResult | None = None
+    ) -> MemoryContext:
+        """Recupera contexto de memória de todos os tiers usando o MemoryManager unificado.
+
+        Args:
+            user_id: Identificador do usuário para isolamento de memória.
+            query: Consulta do usuário para busca semântica.
+            db_pool: Pool de conexão com o banco de dados.
+            intent_result: Resultado de intent opcional para extração de tópicos.
+
+        Returns:
+            Objeto MemoryContext com as memórias recuperadas.
+        """
         try:
-            core = CoreMemory(user_id, db_pool)
-            core_memories = await core.get_all()
-            if core_memories:
-                context["core"] = [
-                    {"key": key, "value": value} for key, value in core_memories.items()
-                ]
-                logger.debug(f"Retrieved {len(core_memories)} core memories for context")
+            # Obter ou criar MemoryManager reutilizável para o usuário (cache LRU)
+            memory_manager = self._get_memory_manager(user_id, db_pool)
 
-            recall = RecallMemory(user_id, db_pool)
-            recall_results = await recall.search(query, limit=3, threshold=0.6)
-            if recall_results:
-                context["recent"] = [
-                    {"content": r["content"], "similarity": r["similarity"]} for r in recall_results
-                ]
+            # Extrair tópicos das entidades de intent, se disponíveis
+            extracted_topics = None
+            if intent_result and intent_result.entities:
+                topic = intent_result.entities.get("topic")
+                if topic:
+                    extracted_topics = [topic]
+
+            # Determinar o que incluir com base no intent classificado
+            include_archival = False
+            if intent_result:
+                include_archival = intent_result.intent in (
+                    IntentCategory.KNOWLEDGE_QUERY,
+                    IntentCategory.DEFINITION,
+                    IntentCategory.EXPLANATION,
+                )
+
+            # Recuperar contexto unificado de todos os tiers
+            context = await memory_manager.retrieve_context(
+                query=query,
+                include_core=True,
+                include_recall=True,
+                include_archival=include_archival,
+                include_graph=True,
+                extracted_topics=extracted_topics,
+            )
+
+            logger.debug(
+                f"Contexto recuperado: core={len(context.core)}, "
+                f"recall={len(context.recall)}, archival={len(context.archival)}, "
+                f"graph={len(context.graph)}"
+            )
+
+            return context
 
         except Exception as e:
-            logger.warning(f"Failed to retrieve memory context: {e}")
-
-        return context
+            logger.warning(f"Falha ao recuperar contexto de memória: {e}")
+            # Retornar contexto vazio em caso de falha
+            return MemoryContext()
 
     async def _store_interaction(
         self,
@@ -590,18 +674,38 @@ class AgentOrchestrator:
         intent_result: IntentResult,
         db_pool,
     ) -> None:
-        """Store interaction in appropriate memory tier."""
+        """Armazena a interação no tier de memória apropriado usando o MemoryManager.
+
+        Args:
+            user_id: Identificador do usuário para isolamento de memória.
+            message: Mensagem enviada pelo usuário.
+            response: Resposta gerada pelo assistente.
+            intent_result: Resultado da classificação de intent com confiança.
+            db_pool: Pool de conexão com o banco de dados.
+        """
         try:
-            # Store in recall memory for semantic search
-            recall = RecallMemory(user_id, db_pool)
-            await recall.add(
-                f"User: {message}\nAssistant: {response}",
-                importance=0.5 + intent_result.confidence * 0.3,
+            # Obter ou criar MemoryManager reutilizável para o usuário (cache LRU)
+            memory_manager = self._get_memory_manager(user_id, db_pool)
+
+            # Calcular importância com base na confiança do intent classificado
+            importance = 0.5 + intent_result.confidence * 0.3
+
+            # Armazenar interação no MemoryManager
+            result = await memory_manager.store_interaction(
+                user_message=message,
+                assistant_response=response,
+                importance=importance,
+                store_in_recall=True,
+                store_in_graph=False,  # Pode ser habilitado futuramente com extração de entidades
+                extract_entities=False,
             )
-            logger.debug("Stored interaction in recall memory")
+
+            logger.debug(
+                f"Interação armazenada na memória: recall_id={result.get('recall_id')}"
+            )
 
         except Exception as e:
-            logger.warning(f"Failed to store interaction: {e}")
+            logger.warning(f"Falha ao armazenar interação: {e}")
 
     async def request_approval(
         self,
