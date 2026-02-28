@@ -79,6 +79,26 @@ manutenibilidade, testabilidade e documentação completa.
 
 ## 3. Fases de Implementação
 
+### FASE 0: Setup (Semana 0) - OBRIGATÓRIA
+
+**Objetivo:** Preparar ambiente e critérios antes de começar
+
+| # | Tarefa | Prioridade | Estimativa | Responsável |
+|---|--------|------------|------------|-------------|
+| 0.1 | Definir Definition of Done | 🔴 Crítica | 2h | - |
+| 0.2 | Configurar SonarQube/CodeClimate | 🔴 Crítica | 2h | - |
+| 0.3 | Criar Makefile com comandos comuns | 🟠 Média | 1h | - |
+| 0.4 | Setup canais de comunicação | 🟠 Média | 1h | - |
+| 0.5 | Mapear riscos completos | 🔴 Crítica | 2h | - |
+| 0.6 | Definir SLIs/SLOs | 🟠 Média | 2h | - |
+
+**Entregáveis:**
+- [ ] Definition of Done documentada
+- [ ] SonarQube/CodeClimate configurado
+- [ ] Makefile funcional
+- [ ] Risk log completo
+- [ ] SLIs/SLOs definidos
+
 ### FASE 1: Fundação (Semana 1-2)
 
 **Objetivo:** Estabelecer base de qualidade
@@ -482,22 +502,40 @@ warn_required_dynamic_aliases = true
 
 ### 6.1 KPIs Técnicos
 
-| KPI | Baseline | Meta FASE 3 | Meta Final |
-|-----|----------|-------------|------------|
-| Cobertura de testes | ~15% | 60% | 80% |
-| Complexidade ciclomática | - | < 10 | < 8 |
-| Duplicação de código | ~5% | < 3% | < 1% |
-| Débito técnico (SonarQube) | - | Médio | Baixo |
-| Documentação | ~50% | 80% | 100% |
+| KPI | Baseline | Meta FASE 3 | Meta Final | Como Medir |
+|-----|----------|-------------|------------|------------|
+| Cobertura de testes | ~15% | 60% | 80% | pytest-cov |
+| Branch coverage | ~10% | 50% | 70% | pytest-cov |
+| Complexidade ciclomática | - | < 10 | < 8 | radon/mccabe |
+| Cognitive complexity | - | < 15 | < 10 | SonarQube |
+| Duplicação de código | ~5% | < 3% | < 1% | SonarQube/jscpd |
+| Maintainability Index | - | > 65 | > 75 | radon |
+| Débito técnico | - | Médio | Baixo | SonarQube |
+| Security rating | - | B | A | SonarQube/bandit |
+| Documentação | ~50% | 80% | 100% | Manual |
 
 ### 6.2 KPIs de Processo
 
-| KPI | Meta |
-|-----|------|
-| Tempo médio de PR review | < 24h |
-| Build time | < 5 min |
-| Test execution time | < 2 min |
-| Code review approval rate | > 90% |
+| KPI | Meta | Como Medir |
+|-----|------|------------|
+| Tempo médio de PR review | < 24h | GitHub metrics |
+| Build time | < 5 min | CI logs |
+| Test execution time | < 2 min | pytest duration |
+| Code review approval rate | > 90% | GitHub metrics |
+| Lead time para PRs | < 3 dias | GitHub metrics |
+| Defect escape rate | < 5% | Bug tracking |
+| Flaky test rate | < 1% | Test reports |
+| Mutation score | > 80% | mutmut |
+
+### 6.3 SLIs/SLOs
+
+| SLI | SLO | Janela |
+|-----|-----|--------|
+| Availability | 99.5% | Mensal |
+| Latência p50 | < 200ms | Semanal |
+| Latência p99 | < 1s | Semanal |
+| Error rate | < 1% | Semanal |
+| Throughput | > 100 req/s | Mensal |
 
 ---
 
@@ -516,22 +554,47 @@ warn_required_dynamic_aliases = true
 
 ### Imediato (Esta semana)
 
-1. [ ] Aprovar este plano
-2. [ ] Configurar pre-commit hooks
-3. [ ] Executar análise estática inicial
-4. [ ] Criar branch `cleancode-phase1`
+1. [ ] **Revisar e aprovar Definition of Done** (Seção 10)
+2. [ ] **Configurar SonarQube ou CodeClimate**
+3. [ ] Executar análise estática inicial (baseline)
+4. [ ] Instalar pre-commit hooks: `pre-commit install`
+5. [ ] Criar Makefile com comandos comuns
 
-### Curto Prazo (Próximas 2 semanas)
+### Curto Prazo (Próximas 2 semanas - FASE 0 + FASE 1)
 
-1. [ ] Implementar logging estruturado
-2. [ ] Criar suite de testes base
-3. [ ] Refatorar módulos críticos
+1. [ ] Completar FASE 0 (Setup)
+2. [ ] Implementar logging estruturado
+3. [ ] Criar suite de testes base
+4. [ ] Configurar CI/CD com SonarQube
+5. [ ] Mapear riscos completos
 
-### Médio Prazo (Próximas 6 semanas)
+### Médio Prazo (Próximas 6 semanas - FASE 2 + FASE 3)
+
+1. [ ] Refatorar módulos críticos
+2. [ ] Atingir 60% de cobertura
+3. [ ] Documentação de APIs
+4. [ ] Testes de integração
+5. [ ] Primeiro benchmark de performance
+
+### Longo Prazo (Próximas 12 semanas - FASE 4 + FASE 5 + FASE 6)
 
 1. [ ] Atingir 80% de cobertura
 2. [ ] Documentação completa
 3. [ ] Sistema de observabilidade
+4. [ ] Release v1.0
+5. [ ] Post-mortem do projeto
+
+### Checklist de Aprovação do Plano
+
+Antes de iniciar, confirmar:
+
+- [ ] Definition of Done revisada e aprovada
+- [ ] Cronograma aceito com buffer de 30%
+- [ ] Riscos completos mapeados
+- [ ] Pirâmide de testes definida
+- [ ] SLIs/SLOs acordados
+- [ ] Recursos alocados
+- [ ] Comunicação configurada
 
 ---
 
@@ -547,3 +610,110 @@ warn_required_dynamic_aliases = true
 
 **Aprovado por:** _______________
 **Data de aprovação:** _______________
+
+---
+
+## 10. Definition of Done (DoD)
+
+Uma tarefa só é considerada "Done" quando **TODOS** os critérios abaixo são atendidos:
+
+### 10.1 Código
+
+- [ ] Código implementado e funcionando
+- [ ] Type hints completos (mypy passa sem erros)
+- [ ] Linting passa (ruff sem erros)
+- [ ] Sem código comentado
+- [ ] Sem console.log/print de debug
+- [ ] Imports organizados (isort/ruff)
+
+### 10.2 Testes
+
+- [ ] Testes unitários passando
+- [ ] Cobertura do código novo >= 80%
+- [ ] Testes de integração (se aplicável)
+- [ ] Sem testes flaky
+- [ ] Testes rodam em < 5 segundos (unitários)
+
+### 10.3 Documentação
+
+- [ ] Docstrings em APIs públicas
+- [ ] Exemplos de uso (se módulo novo)
+- [ ] README atualizado (se necessário)
+- [ ] Changelog atualizado (se breaking change)
+
+### 10.4 Revisão
+
+- [ ] Self-review realizada
+- [ ] Code review aprovado por 1+ revisor
+- [ ] Sem comentários não resolvidos
+- [ ] CI/CD passando
+
+### 10.5 Qualidade
+
+- [ ] Sem regressões conhecidas
+- [ ] Performance não degradada
+- [ ] Security scan passa (bandit)
+- [ ] Complexidade ciclomática < 10
+
+---
+
+## 11. Pirâmide de Testes
+
+### 11.1 Estratégia
+
+```
+         /\
+        /  \       E2E Tests (5-10%)
+       /----\      - Fluxo Discord completo
+      /      \     - Cenários críticos
+     /--------\    Integration Tests (20-30%)
+    /          \   - DB operations (testcontainers)
+   /            \  - API calls (mocked)
+  /--------------\ Unit Tests (60-70%)
+ /                \ - Business logic
+/__________________\ - Pure functions
+```
+
+### 11.2 Critérios por Tipo
+
+| Tipo | Cobertura | Velocidade | Isolamento |
+|------|-----------|------------|------------|
+| Unit | 60-70% | < 100ms | Total |
+| Integration | 20-30% | < 1s | Parcial |
+| E2E | 5-10% | < 30s | Nenhum |
+
+---
+
+## 12. Riscos Completos
+
+| Risco | Prob | Impacto | Mitigação | Contingência |
+|-------|------|---------|-----------|--------------|
+| Quebrar funcionalidades | Média | Alto | Testes regressão | Rollback |
+| Atraso na entrega | Média | Médio | Buffer 30% | Cortar escopo |
+| OpenAI API down | Alta | Crítico | Retry + fallback | Modo degraded |
+| Discord API changes | Média | Alto | Adapter pattern | Versionar |
+| Performance degradation | Média | Alto | Benchmarks | Reverter |
+| Scope creep | Alta | Médio | DoD clara | Rejeitar |
+| Knowledge silos | Média | Médio | Pair programming | Docs |
+| Technical debt | Alta | Médio | Débito max 5%/sprint | Sprint dedicada |
+| Dependências outdated | Baixa | Baixo | Atualização gradual | Pin versão |
+| Resistência mudanças | Baixa | Médio | Comunicação | Workshops |
+
+---
+
+## 13. Comunicação
+
+### 13.1 Canais
+
+| Frequência | Tipo | Duração |
+|------------|------|---------|
+| Diário | Standup async | 5 min |
+| Semanal | Sprint review | 30 min |
+| Quinzenal | Retrospectiva | 45 min |
+| Mensal | Relatório | - |
+
+### 13.2 Reporte de Progresso
+
+- Dashboard de métricas (cobertura, débito, bugs)
+- Sprint board atualizado
+- Risk log mantido atualizado
