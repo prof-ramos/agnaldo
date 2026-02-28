@@ -244,7 +244,10 @@ class AgnoAgent:
                 if memory_context.get("core"):
                     parts.append(f"Fatos importantes: {memory_context['core']}")
                 if memory_context.get("recent"):
-                    parts.append(f"Memórias recentes: {memory_context['recent'][:500]}...")
+                    recent = memory_context["recent"]
+                    truncated = recent[:500]
+                    suffix = "..." if len(recent) > 500 else ""
+                    parts.append(f"Memórias recentes: {truncated}{suffix}")
 
         return "\n\n".join(parts)
 
@@ -315,6 +318,7 @@ class AgentOrchestrator:
         # Cache LRU de MemoryManager por usuário para reutilizar instâncias lazy-loaded
         self._memory_managers: OrderedDict[str, MemoryManager] = OrderedDict()
         self._memory_manager_cache_max = 100  # Limite de entradas no cache (eviction LRU)
+        self._memory_manager_lock = asyncio.Lock()  # Proteção para acesso concorrente
 
         # Study agent (RAG rigoroso para concursos)
         # Inicializado quando db_pool estiver disponível
@@ -576,12 +580,14 @@ class AgentOrchestrator:
 
         return selected_agent_id
 
-    def _get_memory_manager(self, user_id: str, db_pool) -> MemoryManager:
+    async def _get_memory_manager(self, user_id: str, db_pool) -> MemoryManager:
         """Retorna um MemoryManager existente para o usuário ou cria e armazena um novo.
 
         Implementa cache LRU com limite de entradas para evitar crescimento ilimitado.
         Reutilizar o mesmo MemoryManager preserva as instâncias de memória
         lazy-loaded (CoreMemory, RecallMemory, ArchivalMemory, KnowledgeGraph).
+
+        Thread-safe com asyncio.Lock para acesso concorrente.
 
         Args:
             user_id: Identificador do usuário para isolamento de memória.
@@ -590,24 +596,25 @@ class AgentOrchestrator:
         Returns:
             Instância de MemoryManager para o usuário.
         """
-        if user_id in self._memory_managers:
-            # Mover para o final (mais recentemente usado)
-            self._memory_managers.move_to_end(user_id)
-            return self._memory_managers[user_id]
+        async with self._memory_manager_lock:
+            if user_id in self._memory_managers:
+                # Mover para o final (mais recentemente usado)
+                self._memory_managers.move_to_end(user_id)
+                return self._memory_managers[user_id]
 
-        # Criar novo MemoryManager para o usuário
-        manager = MemoryManager(
-            user_id=user_id,
-            db_pool=db_pool,
-            openai_client=self.openai,
-        )
-        self._memory_managers[user_id] = manager
+            # Criar novo MemoryManager para o usuário
+            manager = MemoryManager(
+                user_id=user_id,
+                db_pool=db_pool,
+                openai_client=self.openai,
+            )
+            self._memory_managers[user_id] = manager
 
-        # Eviction LRU: remover entrada mais antiga se o cache estiver cheio
-        if len(self._memory_managers) > self._memory_manager_cache_max:
-            self._memory_managers.popitem(last=False)
+            # Eviction LRU: remover entrada mais antiga se o cache estiver cheio
+            if len(self._memory_managers) > self._memory_manager_cache_max:
+                self._memory_managers.popitem(last=False)
 
-        return manager
+            return manager
 
     async def _retrieve_memory_context(
         self, user_id: str, query: str, db_pool, intent_result: IntentResult | None = None
@@ -625,7 +632,7 @@ class AgentOrchestrator:
         """
         try:
             # Obter ou criar MemoryManager reutilizável para o usuário (cache LRU)
-            memory_manager = self._get_memory_manager(user_id, db_pool)
+            memory_manager = await self._get_memory_manager(user_id, db_pool)
 
             # Extrair tópicos das entidades de intent, se disponíveis
             extracted_topics = None
@@ -685,7 +692,7 @@ class AgentOrchestrator:
         """
         try:
             # Obter ou criar MemoryManager reutilizável para o usuário (cache LRU)
-            memory_manager = self._get_memory_manager(user_id, db_pool)
+            memory_manager = await self._get_memory_manager(user_id, db_pool)
 
             # Calcular importância com base na confiança do intent classificado
             importance = 0.5 + intent_result.confidence * 0.3

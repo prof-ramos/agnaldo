@@ -13,7 +13,7 @@ Funcionalidades:
 
 import asyncio
 import hashlib
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 from loguru import logger
 from openai import AsyncOpenAI
@@ -28,6 +28,17 @@ from src.schemas.memory import MemoryStats
 
 # Tabelas permitidas para consulta de contagem (prevenção de SQL injection)
 _ALLOWED_COUNT_TABLES = frozenset({"recall_memories", "archival_memories"})
+
+
+@runtime_checkable
+class DatabasePool(Protocol):
+    """Protocolo para pool de conexão de banco de dados asyncpg."""
+
+    async def acquire(self): ...
+
+    async def execute(self, query: str, *args) -> str: ...
+
+    async def fetchval(self, query: str, *args) -> Any: ...
 
 
 def redact_user_id(user_id: str) -> str:
@@ -91,7 +102,9 @@ class MemoryContext:
                     break
                 core_text += line
                 current_tokens += line_tokens
-            sections.append(core_text)
+            # Só adiciona se tiver conteúdo além do header
+            if len(core_text) > 25:
+                sections.append(core_text)
 
         # Memória Recall - Conversas recentes relevantes
         if self.recall and current_tokens < max_tokens:
@@ -145,6 +158,8 @@ class MemoryContext:
         if not sections:
             return ""
 
+        # Atualizar total de tokens usados
+        self.total_tokens = current_tokens
         return "\n".join(sections)
 
 
@@ -158,7 +173,7 @@ class MemoryManager:
     def __init__(
         self,
         user_id: str,
-        db_pool,
+        db_pool: DatabasePool,
         openai_client: AsyncOpenAI | None = None,
         core_max_items: int = 100,
         core_max_tokens: int = 10000,
@@ -274,44 +289,31 @@ class MemoryManager:
         """
         context = MemoryContext()
 
-        try:
-            # Executar buscas em paralelo para eficiência
-            tasks = []
+        # Executar buscas em paralelo para eficiência
+        # Cada método _retrieve_* já trata suas próprias exceções
+        tasks = []
 
-            if include_core:
-                tasks.append(self._retrieve_core_context(context))
+        if include_core:
+            tasks.append(self._retrieve_core_context(context))
 
-            if include_recall:
-                tasks.append(self._retrieve_recall_context(query, context))
+        if include_recall:
+            tasks.append(self._retrieve_recall_context(query, context))
 
-            if include_archival and extracted_topics:
-                tasks.append(self._retrieve_archival_context(extracted_topics, context))
+        if include_archival and extracted_topics:
+            tasks.append(self._retrieve_archival_context(extracted_topics, context))
 
-            if include_graph:
-                tasks.append(self._retrieve_graph_context(query, context))
+        if include_graph:
+            tasks.append(self._retrieve_graph_context(query, context))
 
-            if tasks:
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-                # Registrar e repassar exceções para não suprimir silenciosamente
-                first_exc: Exception | None = None
-                for result in results:
-                    if isinstance(result, Exception):
-                        logger.warning(
-                            f"Falha em sub-tarefa de recuperação de contexto: {result}"
-                        )
-                        if first_exc is None:
-                            first_exc = result
-                if first_exc is not None:
-                    raise first_exc
+        if tasks:
+            # Não usamos return_exceptions=True pois cada método já trata erros internamente
+            await asyncio.gather(*tasks)
 
-            logger.info(
-                f"Contexto recuperado: core={len(context.core)}, "
-                f"recall={len(context.recall)}, archival={len(context.archival)}, "
-                f"graph={len(context.graph)}"
-            )
-
-        except Exception as e:
-            logger.warning(f"Falha ao recuperar contexto completo: {e}")
+        logger.info(
+            f"Contexto recuperado: core={len(context.core)}, "
+            f"recall={len(context.recall)}, archival={len(context.archival)}, "
+            f"graph={len(context.graph)}"
+        )
 
         return context
 
@@ -360,16 +362,18 @@ class MemoryManager:
             # Executar todas as buscas archival em paralelo
             all_results = await asyncio.gather(*gather_tasks, return_exceptions=True)
 
-            # Mesclar resultados deduplicando por memory_id
-            existing_ids: set[str | None] = set()
+            # Mesclar resultados deduplicando por memory_id (ignora memory_id None)
+            existing_ids: set[str] = set()
             for result in all_results:
                 if isinstance(result, Exception):
                     logger.warning(f"Falha em busca archival: {result}")
                     continue
                 for item in result:
                     memory_id = item.get("memory_id")
-                    if memory_id not in existing_ids:
-                        existing_ids.add(memory_id)
+                    # Só deduplica se tiver memory_id válido
+                    if memory_id is None or memory_id not in existing_ids:
+                        if memory_id is not None:
+                            existing_ids.add(memory_id)
                         context.archival.append(item)
 
         except Exception as e:
@@ -570,29 +574,31 @@ class MemoryManager:
             total_cleared += await self.core.clear()
 
             # Limpar recall e archival via operações diretas no banco de dados
+            # Usar transação explícita para garantir atomicidade
             async with self.db_pool.acquire() as conn:
-                # Deletar memórias recall; asyncpg retorna status "DELETE N"
-                recall_status = await conn.execute(
-                    "DELETE FROM recall_memories WHERE user_id = $1",
-                    self.user_id,
-                )
-                recall_count = int(recall_status.split()[-1])
-                total_cleared += recall_count
+                async with conn.transaction():
+                    # Deletar memórias recall; asyncpg retorna status "DELETE N"
+                    recall_status = await conn.execute(
+                        "DELETE FROM recall_memories WHERE user_id = $1",
+                        self.user_id,
+                    )
+                    recall_count = int(recall_status.split()[-1])
+                    total_cleared += recall_count
 
-                archival_status = await conn.execute(
-                    "DELETE FROM archival_memories WHERE user_id = $1",
-                    self.user_id,
-                )
-                archival_count = int(archival_status.split()[-1])
-                total_cleared += archival_count
+                    archival_status = await conn.execute(
+                        "DELETE FROM archival_memories WHERE user_id = $1",
+                        self.user_id,
+                    )
+                    archival_count = int(archival_status.split()[-1])
+                    total_cleared += archival_count
 
-                # Limpar nós do grafo (arestas são removidas em cascata)
-                graph_status = await conn.execute(
-                    "DELETE FROM knowledge_nodes WHERE user_id = $1",
-                    self.user_id,
-                )
-                graph_count = int(graph_status.split()[-1])
-                total_cleared += graph_count
+                    # Limpar nós do grafo (arestas são removidas em cascata)
+                    graph_status = await conn.execute(
+                        "DELETE FROM knowledge_nodes WHERE user_id = $1",
+                        self.user_id,
+                    )
+                    graph_count = int(graph_status.split()[-1])
+                    total_cleared += graph_count
 
             logger.warning(
                 f"Removidas {total_cleared} memórias para {redact_user_id(self.user_id)}"
