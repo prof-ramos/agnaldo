@@ -9,6 +9,7 @@ Funcionalidades:
 - Seleção baseada em prioridade
 - Integração com grafo de conhecimento
 - Gerenciamento de orçamento de tokens
+- Isolamento garantido entre usuários
 """
 
 import asyncio
@@ -23,6 +24,12 @@ from src.exceptions import DatabaseError, MemoryServiceError
 from src.knowledge.graph import KnowledgeGraph
 from src.memory.archival import ArchivalMemory
 from src.memory.core import CoreMemory
+from src.memory.isolation import (
+    MemoryIsolationGuard,
+    get_isolation_guard,
+    set_user_context,
+    clear_user_context,
+)
 from src.memory.recall import RecallMemory
 from src.schemas.memory import MemoryStats
 
@@ -198,8 +205,14 @@ class MemoryManager:
             graph_search_limit: Número máximo de nós a recuperar do grafo.
             graph_similarity_threshold: Similaridade mínima para busca no grafo.
             context_max_tokens: Número máximo de tokens no contexto gerado.
+
+        Raises:
+            MemoryServiceError: Se user_id for inválido.
         """
-        self.user_id = user_id
+        # Validar user_id com isolation guard
+        self._isolation_guard = get_isolation_guard()
+        self.user_id = self._isolation_guard.validate_user_id(user_id, "MemoryManager.__init__")
+
         self.db_pool = db_pool
         self.openai = openai_client
 
@@ -219,7 +232,7 @@ class MemoryManager:
         self._archival: ArchivalMemory | None = None
         self._graph: KnowledgeGraph | None = None
 
-        logger.debug(f"MemoryManager inicializado para {redact_user_id(user_id)}")
+        logger.debug(f"MemoryManager inicializado para {redact_user_id(self.user_id)}")
 
     @property
     def core(self) -> CoreMemory:
