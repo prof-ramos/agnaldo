@@ -23,7 +23,7 @@
 
 ## Resumo Executivo
 
-Este plano organiza as 38 findings da revisao CodeRabbit em 4 fases de execucao, priorizando seguranca e bugs antes de questoes de qualidade de codigo e documentacao.
+Este plano organiza as 38 findings da revisão CodeRabbit em 4 fases de execução, priorizando segurança e bugs antes de questões de qualidade de código e documentação.
 
 ### Categorizacao dos Findings
 
@@ -919,12 +919,14 @@ Este plano organiza as 38 findings da revisao CodeRabbit em 4 fases de execucao,
 
 ### Riscos:
 
-| Risco | Mitigacao |
+| Risco | Mitigação |
 |-------|-----------|
-| Quebrar funcionalidade existente | Testes de regressao antes de cada mudanca |
-| Traducao PT-BR perder precisao | Revisar com falante nativo |
-| Testes nao-deterministicos | Usar datetime constante (FIXED_DATETIME) |
-| Fixture override pattern complexo | Documentar padrao claramente |
+| Quebrar funcionalidade existente | Testes de regressão antes de cada mudança |
+| Tradução PT-BR perder precisão | Revisar com falante nativo |
+| Testes não-determinísticos | Usar datetime constante (FIXED_DATETIME) |
+| Fixture override pattern complexo | Documentar padrão claramente |
+| Sobrecarga de contexto | Fazer pausas entre fases; code review incremental; commits atômicos |
+| Drift entre branches | Fazer rebase/merge frequente da branch principal |
 
 ### Dependencias Externas:
 

@@ -183,15 +183,15 @@
       "type": "file"
     },
     {
-      "path": ".claude/agents/mcp-expert.md",
-      "accessCount": 13,
-      "lastAccessed": 1772346800600,
+      "path": ".claude/agents/cli-developer.md",
+      "accessCount": 14,
+      "lastAccessed": 1772348589304,
       "type": "file"
     },
     {
-      "path": ".claude/agents/cli-developer.md",
+      "path": ".claude/agents/mcp-expert.md",
       "accessCount": 13,
-      "lastAccessed": 1772348316061,
+      "lastAccessed": 1772346800600,
       "type": "file"
     },
     {
@@ -213,6 +213,12 @@
       "type": "file"
     },
     {
+      "path": ".claude/agents/typescript-pro.md",
+      "accessCount": 8,
+      "lastAccessed": 1772348586235,
+      "type": "file"
+    },
+    {
       "path": "docs/cleancode-plan.md",
       "accessCount": 6,
       "lastAccessed": 1772334764204,
@@ -225,6 +231,12 @@
       "type": "file"
     },
     {
+      "path": "CHANGELOG.md",
+      "accessCount": 5,
+      "lastAccessed": 1772348585515,
+      "type": "file"
+    },
+    {
       "path": ".claude/agents/video-editor.md",
       "accessCount": 4,
       "lastAccessed": 1772344240629,
@@ -234,12 +246,6 @@
       "path": "tests/e2e/test_discord_commands.py",
       "accessCount": 4,
       "lastAccessed": 1772347775224,
-      "type": "file"
-    },
-    {
-      "path": ".claude/agents/typescript-pro.md",
-      "accessCount": 4,
-      "lastAccessed": 1772348315791,
       "type": "file"
     },
     {
@@ -258,12 +264,6 @@
       "path": ".claude/agents/documentation-engineer.md",
       "accessCount": 3,
       "lastAccessed": 1772348316041,
-      "type": "file"
-    },
-    {
-      "path": "CHANGELOG.md",
-      "accessCount": 3,
-      "lastAccessed": 1772348334052,
       "type": "file"
     },
     {
@@ -289,6 +289,12 @@
       "accessCount": 2,
       "lastAccessed": 1772347678539,
       "type": "file"
+    },
+    {
+      "path": ".claude/agents",
+      "accessCount": 2,
+      "lastAccessed": 1772348583980,
+      "type": "directory"
     },
     {
       "path": "src/exceptions.py",
