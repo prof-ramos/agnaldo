@@ -189,15 +189,15 @@
       "type": "file"
     },
     {
-      "path": ".claude/agents/cli-ui-designer.md",
-      "accessCount": 12,
-      "lastAccessed": 1772344383729,
+      "path": ".claude/agents/cli-developer.md",
+      "accessCount": 13,
+      "lastAccessed": 1772348316061,
       "type": "file"
     },
     {
-      "path": ".claude/agents/cli-developer.md",
+      "path": ".claude/agents/cli-ui-designer.md",
       "accessCount": 12,
-      "lastAccessed": 1772344400645,
+      "lastAccessed": 1772344383729,
       "type": "file"
     },
     {
@@ -219,15 +219,15 @@
       "type": "file"
     },
     {
-      "path": ".claude/agents/video-editor.md",
-      "accessCount": 4,
-      "lastAccessed": 1772344240629,
+      "path": ".claude/agents/python-pro.md",
+      "accessCount": 6,
+      "lastAccessed": 1772348334990,
       "type": "file"
     },
     {
-      "path": ".claude/agents/python-pro.md",
+      "path": ".claude/agents/video-editor.md",
       "accessCount": 4,
-      "lastAccessed": 1772346788213,
+      "lastAccessed": 1772344240629,
       "type": "file"
     },
     {
@@ -238,14 +238,14 @@
     },
     {
       "path": ".claude/agents/typescript-pro.md",
-      "accessCount": 3,
-      "lastAccessed": 1772344239924,
+      "accessCount": 4,
+      "lastAccessed": 1772348315791,
       "type": "file"
     },
     {
       "path": "tests/conftest.py",
-      "accessCount": 3,
-      "lastAccessed": 1772347677688,
+      "accessCount": 4,
+      "lastAccessed": 1772348315854,
       "type": "file"
     },
     {
@@ -255,15 +255,21 @@
       "type": "file"
     },
     {
-      "path": "tests/test_memory_isolation.py",
-      "accessCount": 2,
-      "lastAccessed": 1772334704970,
+      "path": ".claude/agents/documentation-engineer.md",
+      "accessCount": 3,
+      "lastAccessed": 1772348316041,
       "type": "file"
     },
     {
-      "path": ".claude/agents/documentation-engineer.md",
+      "path": "CHANGELOG.md",
+      "accessCount": 3,
+      "lastAccessed": 1772348334052,
+      "type": "file"
+    },
+    {
+      "path": "tests/test_memory_isolation.py",
       "accessCount": 2,
-      "lastAccessed": 1772344102538,
+      "lastAccessed": 1772334704970,
       "type": "file"
     },
     {
@@ -294,12 +300,6 @@
       "path": "src/memory/core.py",
       "accessCount": 1,
       "lastAccessed": 1772334726589,
-      "type": "file"
-    },
-    {
-      "path": "CHANGELOG.md",
-      "accessCount": 1,
-      "lastAccessed": 1772344352018,
       "type": "file"
     },
     {

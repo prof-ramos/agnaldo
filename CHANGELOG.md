@@ -9,17 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Clean Code initiative - FASE 1: Critical fixes for security and reliability
-- Type hints para todos os comandos do Discord em `src/discord/commands.py`
-- FIXED_DATETIME constante em testes para garantir determinismo
-- Segurança melhorada com exceções customizadas no código
+- Type hints for all Discord commands in `src/discord/commands.py`
+- FIXED_DATETIME constant in tests to guarantee determinism
+- Improved security with custom exceptions in code
 
 ### Changed
-- Atualizada documentação de agentes `.claude/agents/` com melhorias de clareza
-- Consistência de métricas de coverage entre documentações
+- Updated agent documentation `.claude/agents/` with clarity improvements
+- Consistency of coverage metrics across documentation
 
 ### Fixed
-- Uso de `datetime.now(timezone.utc)` em testes substituído por constante fixa
-- Inconsistência de threshold de coverage (90% vs 95%) documentalmente alinhada
+- Usage of `datetime.now(timezone.utc)` in tests replaced by fixed constant
+- Coverage threshold inconsistency (90% vs 95%) documentation aligned
 
 ---
 

@@ -1,7 +1,7 @@
 ---
 id: discord-async-command-test
 name: Discord Async Command Test Pattern
-description: Teste de comandos Discord async requer await em setup_commands e mock adequado de bot.tree
+description: Testes de comandos Discord async requer await em setup_commands e mock adequado de bot.tree
 source: conversation
 triggers:
   - "RuntimeWarning coroutine was never awaited"
@@ -35,7 +35,7 @@ Com `await setup_commands(mock_bot)`:
 ## Recognition Pattern
 
 Quando aplicar esta skill:
-- Testando comandos Discordslash em `tests/integration/test_discord/`
+- Testando comandos Discord slash em `tests/integration/test_discord/`
 - Usando `unittest.mock.MagicMock()` para mockar `Bot`
 - Chamando `setup_commands()` ou funções similares de registro
 - Vendo `RuntimeWarning: coroutine 'X' was never awaited`
