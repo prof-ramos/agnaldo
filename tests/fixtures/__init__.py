@@ -73,10 +73,10 @@ def assert_has_violation(
         AssertionError: Se a violação não for encontrada.
     """
     assert any(
-        v["operation"] == operation
-        and v["resource_type"] == resource_type
-        and v["isolation_valid"] is False
-        and v["success"] is False
+        v.get("operation") == operation
+        and v.get("resource_type") == resource_type
+        and v.get("isolation_valid") is False
+        and v.get("success") is False
         for v in violations
     ), f"Violação não encontrada: operation={operation}, resource_type={resource_type}"
 

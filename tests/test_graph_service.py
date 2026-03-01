@@ -93,8 +93,9 @@ class TestGraphService:
     def mock_db_pool(self):
         """Mock do pool de banco de dados."""
         pool = MagicMock()
-        acquire_cm = AsyncMock()
-        pool.acquire.return_value = acquire_cm
+        # Configurar acquire para retornar um async context manager funcional
+        pool.acquire.return_value.__aenter__.return_value = MagicMock()
+        pool.acquire.return_value.__aexit__.return_value = None
         return pool
 
     @pytest.fixture

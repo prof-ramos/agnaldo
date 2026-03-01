@@ -24,6 +24,11 @@ class ResponseStatus(str, Enum):
     PENDING = "pending"
 
 
+def _get_utc_now() -> datetime:
+    """Retorna datetime atual em UTC."""
+    return datetime.now(timezone.utc)
+
+
 class AgentMessage(BaseModel):
     """Base message format for agent communication."""
 
@@ -32,11 +37,6 @@ class AgentMessage(BaseModel):
     receiver: str = Field(..., description="Agent ID receiving the message")
     type: MessageType = Field(..., description="Message type")
     content: dict[str, Any] = Field(default_factory=dict, description="Message payload")
-
-    def _get_utc_now() -> datetime:
-        """Retorna datetime atual em UTC."""
-        return datetime.now(timezone.utc)
-
     timestamp: datetime = Field(
         default_factory=_get_utc_now,
         description="Message creation time (UTC)",

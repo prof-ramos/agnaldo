@@ -85,7 +85,6 @@ async def test_memory_search_command_flow(
     mock_conn = ctx.conn
 
     # Configurar mocks para busca semântica
-    from datetime import datetime, timezone
 
     now = datetime.now(timezone.utc)
     mock_conn.fetch.return_value = [

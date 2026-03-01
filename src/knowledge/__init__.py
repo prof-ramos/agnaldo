@@ -39,11 +39,10 @@ def __getattr__(name: str) -> Any:
     adiando o carregamento de dependências pesadas até que sejam realmente necessárias.
     """
     if name in {"LegalPDFIngestor", "get_ingestor"}:
-        from src.knowledge.legal_pdf_ingestor import LegalPDFIngestor, get_ingestor
-
-        exports: dict[str, Any] = {
-            "LegalPDFIngestor": LegalPDFIngestor,
-            "get_ingestor": get_ingestor,
-        }
-        return exports[name]
+        # Importar uma vez e cache em globals para chamadas subsequentes
+        if name not in globals():
+            from src.knowledge.legal_pdf_ingestor import LegalPDFIngestor, get_ingestor
+            globals()["LegalPDFIngestor"] = LegalPDFIngestor
+            globals()["get_ingestor"] = get_ingestor
+        return globals()[name]
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -4,7 +4,7 @@ Este módulo contém fixtures reutilizáveis para todos os testes.
 """
 
 import asyncio
-from collections.abc import Awaitable, Callable, Generator
+from collections.abc import Callable, Generator
 from typing import Any, NamedTuple
 from unittest.mock import AsyncMock, MagicMock
 

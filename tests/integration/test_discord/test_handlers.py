@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 import pytest
 
 from src.discord.handlers import MessageHandler
-from src.exceptions import AgentCommunicationError, DatabaseError, MemoryServiceError
+from src.exceptions import AgentCommunicationError, DatabaseError
 from src.intent.classifier import IntentClassifier
 
 

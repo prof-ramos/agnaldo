@@ -171,15 +171,15 @@
   },
   "hotPaths": [
     {
-      "path": "src/discord/commands.py",
-      "accessCount": 19,
-      "lastAccessed": 1772347096219,
+      "path": "tests/integration/test_discord/test_handlers.py",
+      "accessCount": 21,
+      "lastAccessed": 1772347679054,
       "type": "file"
     },
     {
-      "path": "tests/integration/test_discord/test_handlers.py",
+      "path": "src/discord/commands.py",
       "accessCount": 19,
-      "lastAccessed": 1772347341683,
+      "lastAccessed": 1772347096219,
       "type": "file"
     },
     {
@@ -201,6 +201,12 @@
       "type": "file"
     },
     {
+      "path": "src/schemas/agents.py",
+      "accessCount": 11,
+      "lastAccessed": 1772347755196,
+      "type": "file"
+    },
+    {
       "path": ".claude/agents/backend-developer.md",
       "accessCount": 9,
       "lastAccessed": 1772344400965,
@@ -210,12 +216,6 @@
       "path": "docs/cleancode-plan.md",
       "accessCount": 6,
       "lastAccessed": 1772334764204,
-      "type": "file"
-    },
-    {
-      "path": "src/schemas/agents.py",
-      "accessCount": 5,
-      "lastAccessed": 1772334775380,
       "type": "file"
     },
     {
@@ -231,15 +231,27 @@
       "type": "file"
     },
     {
+      "path": "tests/e2e/test_discord_commands.py",
+      "accessCount": 4,
+      "lastAccessed": 1772347775224,
+      "type": "file"
+    },
+    {
       "path": ".claude/agents/typescript-pro.md",
       "accessCount": 3,
       "lastAccessed": 1772344239924,
       "type": "file"
     },
     {
-      "path": "tests/e2e/test_discord_commands.py",
-      "accessCount": 2,
-      "lastAccessed": 1772334686819,
+      "path": "tests/conftest.py",
+      "accessCount": 3,
+      "lastAccessed": 1772347677688,
+      "type": "file"
+    },
+    {
+      "path": "tests/test_graph_service.py",
+      "accessCount": 3,
+      "lastAccessed": 1772347679537,
       "type": "file"
     },
     {
@@ -261,9 +273,15 @@
       "type": "file"
     },
     {
-      "path": "tests/test_graph_service.py",
-      "accessCount": 1,
-      "lastAccessed": 1772334695805,
+      "path": "tests/fixtures/__init__.py",
+      "accessCount": 2,
+      "lastAccessed": 1772347677956,
+      "type": "file"
+    },
+    {
+      "path": "src/knowledge/__init__.py",
+      "accessCount": 2,
+      "lastAccessed": 1772347678539,
       "type": "file"
     },
     {
