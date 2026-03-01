@@ -6,7 +6,7 @@ e armazenamento de conversas no banco de dados.
 """
 
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
@@ -731,7 +731,7 @@ async def test_memory_add_exception_not_exposed_to_user():
     Verifica que erros internos do banco de dados retornam
     mensagens sanitizadas em PT-BR, sem expor detalhes técnicos.
     """
-    from unittest.mock import AsyncMock, MagicMock, patch
+    from unittest.mock import AsyncMock, MagicMock, Mock, patch
     from src.discord.commands import setup_commands
     from src.exceptions import DatabaseError
 
@@ -747,6 +747,35 @@ async def test_memory_add_exception_not_exposed_to_user():
     mock_bot = MagicMock()
     mock_db_pool = MagicMock()
 
+    # Mock do bot.tree.add_command para capturar grupos e seus subcomandos
+    registered_groups = {}
+    registered_commands = []
+
+    def mock_add_command(command):
+        """Captura comandos e grupos adicionados ao bot.tree"""
+        if hasattr(command, 'commands'):  # É um Group
+            registered_groups[command.name] = command
+            registered_commands.append(command)
+        else:  # É um comando direto
+            registered_commands.append(command)
+
+    mock_bot.tree.add_command = Mock(side_effect=mock_add_command)
+    mock_bot.tree.walk_commands = Mock(return_value=registered_commands)
+
+    # Mock do bot.tree.command decorator para comandos diretos
+    def mock_command_decorator(**kwargs):
+        def decorator(func):
+            cmd = MagicMock()
+            cmd.name = kwargs.get("name", func.__name__)
+            cmd.callback = func
+            cmd.description = kwargs.get("description", "")
+            cmd.walk_commands = Mock(return_value=[])
+            registered_commands.append(cmd)
+            return cmd
+        return decorator
+
+    mock_bot.tree.command = Mock(side_effect=mock_command_decorator)
+
     # Mock do CoreMemory que levanta DatabaseError
     with patch("src.discord.commands.CoreMemory") as mock_core_memory:
         mock_memory_instance = AsyncMock()
@@ -761,38 +790,41 @@ async def test_memory_add_exception_not_exposed_to_user():
         # Setup commands para registrar memory_add
         await setup_commands(mock_bot)
 
-        # Encontrar o comando memory_add no bot
+        # Encontrar o comando memory_add
         memory_add_cmd = None
-        for command in mock_bot.tree.walk_commands():
-            if command.name == "memory":
-                for subcommand in command.walk_commands():
-                    if subcommand.name == "add":
-                        memory_add_cmd = subcommand
-                        break
+        memory_group = registered_groups.get("memory")
+        if memory_group and hasattr(memory_group, 'commands'):
+            # Discord.py groups have a 'commands' property (can be list or dict)
+            commands = memory_group.commands
+            if isinstance(commands, dict):
+                commands_list = commands.values()
+            else:
+                commands_list = commands if isinstance(commands, list) else [commands]
+            for cmd in commands_list:
+                if hasattr(cmd, 'name') and cmd.name == "add":
+                    memory_add_cmd = cmd
+                    break
 
-        assert memory_add_cmd is not None, "Comando memory_add não encontrado"
+        assert memory_add_cmd is not None, f"Comando memory_add não encontrado. Grupos: {list(registered_groups.keys())}"
 
-        # Executar comando diretamente (bypass do Discord)
-        try:
-            await memory_add_cmd.callback(
-                memory_add_cmd,
-                mock_interaction,
-                key="test-key",
-                value="test-value",
-                importance=0.5
-            )
-        except Exception:
-            pass  # Exceção esperada, estamos testando o tratamento
+        # Executar comando diretamente (exceção é capturada e convertida em mensagem amigável)
+        await memory_add_cmd.callback(
+            mock_interaction,
+            key="test-key",
+            value="test-value",
+            importance=0.5
+        )
 
-        # Verificar que mensagem de erro não contém detalhes técnicos
+        # Verificar que mensagem de erro foi enviada
+        assert mock_interaction.response.send_message.called
         call_args = mock_interaction.response.send_message.call_args
-        if call_args and call_args[0]:
-            error_message = call_args[0][0]
+        assert call_args and call_args[0], "Mensagem de erro não foi enviada"
+        error_message = call_args[0][0]
 
-            # Verificar que não expõe detalhes do banco
-            assert "password" not in error_message.lower()
-            assert "secret" not in error_message.lower()
-            assert "connection failed" not in error_message.lower()
+        # Verificar que não expõe detalhes do banco
+        assert "password" not in error_message.lower()
+        assert "secret" not in error_message.lower()
+        assert "connection failed" not in error_message.lower()
 
-            # Verificar que mensagem é amigável em PT-BR
-            assert "erro" in error_message.lower() or "banco" in error_message.lower()
+        # Verificar que mensagem é amigável em PT-BR
+        assert "erro" in error_message.lower() or "banco" in error_message.lower()

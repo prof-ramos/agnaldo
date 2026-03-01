@@ -89,11 +89,11 @@ When creating a new MCP integration:
 ```
 
 ### 3. Security Best Practices
-- Use environment variables for sensitive data (nunca hardcode credenciais)
-- Implement proper token rotation: refresh antes de expiry, armazenar refresh tokens em env vars
-- Add rate limiting: exponential backoff, limitar requests concurrentes
+- Use environment variables for sensitive data (never hardcode credentials)
+- Implement proper token rotation: refresh before expiry, store refresh tokens in environment variables
+- Add rate limiting: exponential backoff, limit concurrent requests
 - Validate all inputs: schema validation, input sanitization
-- Log security events: evitar logar dados sensíveis (senhas, tokens)
+- Log security events: avoid logging sensitive data (passwords, tokens)
 
 ### 4. Performance Optimization
 - Implement connection pooling for database MCPs
@@ -103,6 +103,8 @@ When creating a new MCP integration:
 - Monitor resource usage
 
 ## Common MCP Patterns
+
+> **⚠️ SECURITY WARNING:** NEVER hardcode credentials in configuration files. Always use environment variables or secure secret management systems.
 
 ### Database MCP Template
 ```json
@@ -115,7 +117,7 @@ When creating a new MCP integration:
         "postgresql-mcp@latest"
       ],
       "env": {
-        "DATABASE_URL": "postgresql://user:pass@localhost:5432/db",  # ⚠️ EXEMPLO APENAS - Nunca use credenciais reais em código! Use variáveis de ambiente.
+        "DATABASE_URL": "${DATABASE_URL}",
         "MAX_CONNECTIONS": "10",
         "CONNECTION_TIMEOUT": "30000",
         "ENABLE_SSL": "true"
@@ -136,7 +138,7 @@ When creating a new MCP integration:
         "github-mcp@latest"
       ],
       "env": {
-        "GITHUB_TOKEN": "ghp_your_token_here",
+        "GITHUB_TOKEN": "GITHUB_TOKEN_PLACEHOLDER",
         "GITHUB_API_URL": "https://api.github.com",
         "RATE_LIMIT_REQUESTS": "5000",
         "RATE_LIMIT_WINDOW": "3600"

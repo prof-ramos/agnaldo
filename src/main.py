@@ -189,7 +189,12 @@ async def main() -> int:
         bot.personality = create_soul_personality()
 
         logger.info("Initializing message handler...")
-        intent_classifier = IntentClassifier(model_name=settings.SENTENCE_TRANSFORMER_MODEL)
+        # Load model in executor to avoid blocking the event loop
+        loop = asyncio.get_running_loop()
+        intent_classifier = await loop.run_in_executor(
+            None,
+            lambda: IntentClassifier(model_name=settings.SENTENCE_TRANSFORMER_MODEL)
+        )
         message_handler = await get_message_handler(
             bot=bot,
             intent_classifier=intent_classifier,

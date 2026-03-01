@@ -172,8 +172,20 @@
   "hotPaths": [
     {
       "path": "src/discord/commands.py",
-      "accessCount": 14,
-      "lastAccessed": 1772344465618,
+      "accessCount": 19,
+      "lastAccessed": 1772347096219,
+      "type": "file"
+    },
+    {
+      "path": "tests/integration/test_discord/test_handlers.py",
+      "accessCount": 19,
+      "lastAccessed": 1772347341683,
+      "type": "file"
+    },
+    {
+      "path": ".claude/agents/mcp-expert.md",
+      "accessCount": 13,
+      "lastAccessed": 1772346800600,
       "type": "file"
     },
     {
@@ -201,12 +213,6 @@
       "type": "file"
     },
     {
-      "path": ".claude/agents/mcp-expert.md",
-      "accessCount": 6,
-      "lastAccessed": 1772344138364,
-      "type": "file"
-    },
-    {
       "path": "src/schemas/agents.py",
       "accessCount": 5,
       "lastAccessed": 1772334775380,
@@ -219,9 +225,9 @@
       "type": "file"
     },
     {
-      "path": "tests/integration/test_discord/test_handlers.py",
+      "path": ".claude/agents/python-pro.md",
       "accessCount": 4,
-      "lastAccessed": 1772344450447,
+      "lastAccessed": 1772346788213,
       "type": "file"
     },
     {
@@ -249,9 +255,9 @@
       "type": "file"
     },
     {
-      "path": ".claude/agents/python-pro.md",
+      "path": "src/main.py",
       "accessCount": 2,
-      "lastAccessed": 1772344110838,
+      "lastAccessed": 1772346788660,
       "type": "file"
     },
     {
@@ -277,6 +283,12 @@
       "accessCount": 1,
       "lastAccessed": 1772344352018,
       "type": "file"
+    },
+    {
+      "path": "src",
+      "accessCount": 1,
+      "lastAccessed": 1772346936909,
+      "type": "directory"
     }
   ],
   "userDirectives": []

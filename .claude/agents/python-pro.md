@@ -204,7 +204,7 @@ Ensure code meets production standards.
 Quality checklist:
 - Black formatting applied
 - Mypy type checking passed
-- Pytest coverage ≥ 90%
+- Pytest coverage ≥ 95%
 - Ruff linting clean
 - Bandit security scan passed
 - Performance benchmarks met
