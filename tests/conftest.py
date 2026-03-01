@@ -4,17 +4,146 @@ Este módulo contém fixtures reutilizáveis para todos os testes.
 """
 
 import asyncio
-from typing import AsyncGenerator, Generator
+from collections.abc import Awaitable, Callable, Generator
+from typing import Any, NamedTuple
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytest_asyncio
 
 from src.base.logging import setup_logging
+from src.discord.commands import setup_commands
+
+pytest_plugins = ["tests.fixtures.discord"]
 
 
 # Configurar logging para testes
 setup_logging(level="DEBUG", json_output=False)
+
+
+class BotTestContext(NamedTuple):
+    """Contexto de teste para bot com comandos configurados.
+
+    Attributes:
+        bot: Instância do bot mockado.
+        pool: Pool de banco de dados mockado.
+        conn: Conexão de banco de dados mockada.
+    """
+
+    bot: MagicMock
+    pool: MagicMock
+    conn: AsyncMock
+
+
+class MockCommandTree:
+    """Minimal command tree for slash-command E2E tests."""
+
+    def __init__(self) -> None:
+        self._commands: dict[str, Any] = {}
+
+    def command(
+        self,
+        name: str | None = None,
+        description: str | None = None,
+    ) -> Callable[[Any], Any]:
+        """Decorator that captures root slash commands."""
+
+        def decorator(func: Any) -> Any:
+            cmd_name = name or func.__name__
+            command = MagicMock()
+            command.name = cmd_name
+            command.qualified_name = cmd_name
+            command.description = description or ""
+            command.callback = func
+            self._commands[cmd_name] = command
+            return func
+
+        return decorator
+
+    async def sync(self, guild: Any = None) -> list[Any]:
+        """Mock tree sync."""
+        return list(self._commands.values())
+
+    def add_command(self, command):
+        """Capture command groups and their subcommands."""
+        group_commands = getattr(command, "commands", None)
+        if group_commands is None:
+            command_name = getattr(command, "qualified_name", None) or getattr(command, "name", None)
+            if command_name:
+                self._commands[command_name] = command
+            return
+
+        commands = group_commands.values() if hasattr(group_commands, "values") else group_commands
+        for cmd in commands:
+            cmd_name = getattr(cmd, "name", None)
+            qualified_name = getattr(cmd, "qualified_name", None)
+            if cmd_name:
+                self._commands[cmd_name] = cmd
+            if qualified_name:
+                self._commands[qualified_name] = cmd
+
+    def get_command(self, name: str, guild=None):
+        """Return command by name or qualified name."""
+        return self._commands.get(name)
+
+
+@pytest_asyncio.fixture
+async def bot_with_commands(monkeypatch) -> BotTestContext:
+    """Build a bot-like object with all slash commands registered.
+
+    Returns:
+        BotTestContext com bot, pool e conn mockados.
+    """
+    # Required settings for the settings singleton
+    monkeypatch.setenv("DISCORD_BOT_TOKEN", "test_token_123")
+    monkeypatch.setenv("SUPABASE_URL", "https://test.supabase.co")
+    monkeypatch.setenv("SUPABASE_DB_URL", "postgresql://test")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test_key")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key")
+
+    from src.config.settings import reset_settings
+
+    reset_settings()
+
+    mock_conn = AsyncMock()
+    mock_conn.fetch = AsyncMock(return_value=[])
+    mock_conn.fetchval = AsyncMock(return_value="mock-uuid")
+    mock_conn.fetchrow = AsyncMock(return_value=None)
+    mock_conn.execute = AsyncMock(return_value="INSERT 1")
+
+    transaction_cm = AsyncMock()
+    transaction_cm.__aenter__.return_value = None
+    transaction_cm.__aexit__.return_value = None
+    mock_conn.transaction = MagicMock(return_value=transaction_cm)
+
+    acquire_cm = AsyncMock()
+    acquire_cm.__aenter__.return_value = mock_conn
+    acquire_cm.__aexit__.return_value = None
+    mock_pool = MagicMock()
+    mock_pool.acquire = MagicMock(return_value=acquire_cm)
+
+    rate_limiter = MagicMock()
+    rate_limiter.acquire = AsyncMock()
+    rate_limiter.get_available_tokens = MagicMock(
+        return_value={
+            "global_tokens": 50.0,
+            "channel_tokens": 5.0,
+        }
+    )
+
+    bot = MagicMock()
+    bot.tree = MockCommandTree()
+    bot.db_pool = mock_pool
+    bot.user = MagicMock()
+    bot.user.mention = "@Agnaldo"
+    bot.user.name = "Agnaldo"
+    bot.guilds = []
+    bot.latency = 0.05
+    bot.get_rate_limiter = MagicMock(return_value=rate_limiter)
+
+    await setup_commands(bot)
+
+    return BotTestContext(bot=bot, pool=mock_pool, conn=mock_conn)
 
 
 # ============================================================================

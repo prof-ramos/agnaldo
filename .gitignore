@@ -54,3 +54,7 @@ htmlcov/
 repomix-output.xml
 PRD.tmp
 analisecoderabbit_debug.md
+
+# OMC State - Never commit runtime state
+.omc/state/
+.omc/sessions/*.json

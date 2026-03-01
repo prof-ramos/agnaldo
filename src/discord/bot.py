@@ -35,6 +35,7 @@ class AgnaldoBot(Bot):
         self.settings = settings
         self.personality: str | None = None
         self.db_pool: Any = None  # Set during initialization
+        self.message_handler: Any | None = None
 
     async def setup_hook(self) -> None:
         """
@@ -79,16 +80,6 @@ class AgnaldoBot(Bot):
         if not message.content or not message.content.strip():
             return None
 
-        # Build context for agent
-        context = {
-            "username": message.author.display_name,
-            "global_name": message.author.global_name,
-            "channel_id": str(message.channel.id),
-            "guild_id": str(message.guild.id) if message.guild else None,
-            "guild_name": message.guild.name if message.guild else "DM",
-            "is_dm": message.guild is None,
-        }
-
         try:
             # Ensure message handler is initialized
             if self.message_handler is None:
@@ -96,9 +87,7 @@ class AgnaldoBot(Bot):
                 return "Desculpe, o sistema está configurando..."
 
             # Process message through handler
-            response = await self.message_handler.process_message(message, context)
-
-            return response
+            return await self.message_handler.process_message(message)
 
         except Exception as e:
             logger.error(f"Error processing message: {e}")

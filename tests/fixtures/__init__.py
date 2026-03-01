@@ -22,6 +22,8 @@ Exemplo de uso:
     memory = create_test_memory_item(tier="core", importance=0.8)
 """
 
+from typing import Any
+
 # Exporta funções mais comuns para facilitar imports
 from tests.fixtures.discord import (
     create_mock_bot,
@@ -49,6 +51,36 @@ from tests.fixtures.openai import (
     create_mock_openai_client,
 )
 
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
+
+
+def assert_has_violation(
+    violations: list[dict[str, Any]],
+    operation: str,
+    resource_type: str,
+) -> None:
+    """Verifica se existe uma violação específica na lista de violações.
+
+    Args:
+        violations: Lista de violações retornada pelo guard.
+        operation: Nome da operação que gerou a violação.
+        resource_type: Tipo do recurso da violação.
+
+    Raises:
+        AssertionError: Se a violação não for encontrada.
+    """
+    assert any(
+        v["operation"] == operation
+        and v["resource_type"] == resource_type
+        and v["isolation_valid"] is False
+        and v["success"] is False
+        for v in violations
+    ), f"Violação não encontrada: operation={operation}, resource_type={resource_type}"
+
+
 __all__ = [
     # Discord mocks
     "create_mock_user",
@@ -72,4 +104,6 @@ __all__ = [
     "create_test_agent_message",
     "create_test_memory_stats",
     "create_test_db_pool",
+    # Helper functions
+    "assert_has_violation",
 ]

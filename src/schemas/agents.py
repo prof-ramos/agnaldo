@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 class MessageType(str, Enum):
@@ -32,10 +32,31 @@ class AgentMessage(BaseModel):
     receiver: str = Field(..., description="Agent ID receiving the message")
     type: MessageType = Field(..., description="Message type")
     content: dict[str, Any] = Field(default_factory=dict, description="Message payload")
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Message creation time")
-    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
-    model_config = ConfigDict(json_encoders={datetime: lambda v: v.isoformat()})
+    def _get_utc_now() -> datetime:
+        """Retorna datetime atual em UTC."""
+        return datetime.now(timezone.utc)
+
+    timestamp: datetime = Field(
+        default_factory=_get_utc_now,
+        description="Message creation time (UTC)",
+    )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Additional metadata",
+    )
+
+    @field_serializer("timestamp")
+    def serialize_timestamp(self, value: datetime) -> str:
+        """Serializa timestamp como string ISO-8601 nos dumps do modelo.
+
+        Args:
+            value: Objeto datetime a ser serializado.
+
+        Returns:
+            String formatada em ISO-8601 via value.isoformat().
+        """
+        return value.isoformat()
 
 
 class AgentResponse(BaseModel):

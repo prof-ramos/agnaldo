@@ -11,17 +11,19 @@ This module provides message processing capabilities that:
 import asyncio
 import hashlib
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from discord.ext.commands import Bot
 from loguru import logger
 
 from discord import Message
 from src.agents.orchestrator import AgentOrchestrator, get_orchestrator
-from src.agents.study_agent import StudyAgent
 from src.exceptions import AgentCommunicationError
 from src.intent.classifier import IntentClassifier
 from src.schemas.knowledge import StudyAgentRequest
+
+if TYPE_CHECKING:
+    from src.agents.study_agent import StudyAgent
 
 
 class MessageHandler:
@@ -101,14 +103,33 @@ class MessageHandler:
 
         # Detect comando !ask para modo estudo rigoroso
         if message.content.strip().startswith("!ask "):
-            return await self._handle_ask_command(message, user_id, context)
+            return await self._handle_ask_command(message, user_id)
+
+        return await self.process_text(message.content, context)
+
+    async def process_text(self, content: str, context: dict[str, Any]) -> str | None:
+        """Processa texto arbitrário através do sistema de agentes.
+
+        Args:
+            content: Conteúdo da mensagem do usuário.
+            context: Contexto do Discord pré-construído.
+
+        Returns:
+            Resposta do agente, ou None se o conteúdo estiver vazio.
+        """
+        if not content or not content.strip():
+            return None
+
+        user_id = str(context["user_id"])
+        channel_id = str(context["channel_id"])
+        guild_id = context.get("guild_id")
 
         user_token = hashlib.sha256(user_id.encode()).hexdigest()[:12]
-        content_hash = hashlib.sha256(message.content.encode()).hexdigest()[:12]
+        content_hash = hashlib.sha256(content.encode()).hexdigest()[:12]
         logger.info(
             "Processing message "
-            f"user={user_token} message_id={message.id} "
-            f"content_length={len(message.content)} content_hash={content_hash}"
+            f"user={user_token} "
+            f"content_length={len(content)} content_hash={content_hash}"
         )
 
         try:
@@ -119,7 +140,7 @@ class MessageHandler:
             # Route and process through orchestrator
             response_chunks = []
             async for chunk in self._orchestrator.route_and_process(
-                message=message.content,
+                message=content,
                 context=context,
                 user_id=user_id,
                 db_pool=self.db_pool,
@@ -132,9 +153,9 @@ class MessageHandler:
             if self.db_pool:
                 await self._store_conversation(
                     user_id=user_id,
-                    channel_id=str(message.channel.id),
-                    guild_id=str(message.guild.id) if message.guild else None,
-                    user_message=message.content,
+                    channel_id=channel_id,
+                    guild_id=str(guild_id) if guild_id else None,
+                    user_message=content,
                     assistant_response=response,
                 )
 
@@ -187,14 +208,12 @@ class MessageHandler:
         self,
         message: Message,
         user_id: str,
-        context: dict[str, Any],
     ) -> str:
         """Processa comando !ask usando StudyAgent para RAG rigoroso.
 
         Args:
             message: Discord message.
             user_id: User ID.
-            context: Contexto do Discord.
 
         Returns:
             Resposta do StudyAgent ou mensagem de erro.

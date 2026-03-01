@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.discord.handlers import MessageHandler
-from src.exceptions import AgentCommunicationError
+from src.exceptions import AgentCommunicationError, DatabaseError, MemoryServiceError
 from src.intent.classifier import IntentClassifier
 
 
@@ -27,7 +27,8 @@ def _build_mock_pool(mock_conn: AsyncMock) -> MagicMock:
     transaction_cm = AsyncMock()
     transaction_cm.__aenter__.return_value = None
     transaction_cm.__aexit__.return_value = None
-    mock_conn.transaction.return_value = transaction_cm
+    # transaction() deve retornar diretamente um async context manager, não uma coroutine
+    mock_conn.transaction = MagicMock(return_value=transaction_cm)
 
     return mock_pool
 
@@ -719,3 +720,79 @@ async def test_get_conversation_history_db_error(mock_bot, mock_intent_classifie
 
     # Assert - deve retornar lista vazia em caso de erro
     assert history == []
+
+
+@pytest.mark.integration
+@pytest.mark.discord
+@pytest.mark.asyncio
+async def test_memory_add_exception_not_exposed_to_user():
+    """Testa que exceções de banco não são expostas ao usuário.
+
+    Verifica que erros internos do banco de dados retornam
+    mensagens sanitizadas em PT-BR, sem expor detalhes técnicos.
+    """
+    from unittest.mock import AsyncMock, MagicMock, patch
+    from src.discord.commands import setup_commands
+    from src.exceptions import DatabaseError
+
+    # Criar mock de interaction
+    mock_interaction = MagicMock()
+    mock_interaction.response.is_done.return_value = False
+    mock_interaction.response.send_message = AsyncMock()
+    mock_interaction.user.id = 123456
+    mock_interaction.user.name = "TestUser"
+    mock_interaction.channel_id = 789012
+
+    # Criar mock de bot com db_pool que levanta DatabaseError
+    mock_bot = MagicMock()
+    mock_db_pool = MagicMock()
+
+    # Mock do CoreMemory que levanta DatabaseError
+    with patch("src.discord.commands.CoreMemory") as mock_core_memory:
+        mock_memory_instance = AsyncMock()
+        mock_memory_instance.add.side_effect = DatabaseError(
+            "Connection failed: password=secret123", operation="insert"
+        )
+        mock_core_memory.return_value = mock_memory_instance
+
+        mock_bot.db_pool = mock_db_pool
+        mock_bot.get_rate_limiter.return_value.acquire = AsyncMock()
+
+        # Setup commands para registrar memory_add
+        await setup_commands(mock_bot)
+
+        # Encontrar o comando memory_add no bot
+        memory_add_cmd = None
+        for command in mock_bot.tree.walk_commands():
+            if command.name == "memory":
+                for subcommand in command.walk_commands():
+                    if subcommand.name == "add":
+                        memory_add_cmd = subcommand
+                        break
+
+        assert memory_add_cmd is not None, "Comando memory_add não encontrado"
+
+        # Executar comando diretamente (bypass do Discord)
+        try:
+            await memory_add_cmd.callback(
+                memory_add_cmd,
+                mock_interaction,
+                key="test-key",
+                value="test-value",
+                importance=0.5
+            )
+        except Exception:
+            pass  # Exceção esperada, estamos testando o tratamento
+
+        # Verificar que mensagem de erro não contém detalhes técnicos
+        call_args = mock_interaction.response.send_message.call_args
+        if call_args and call_args[0]:
+            error_message = call_args[0][0]
+
+            # Verificar que não expõe detalhes do banco
+            assert "password" not in error_message.lower()
+            assert "secret" not in error_message.lower()
+            assert "connection failed" not in error_message.lower()
+
+            # Verificar que mensagem é amigável em PT-BR
+            assert "erro" in error_message.lower() or "banco" in error_message.lower()

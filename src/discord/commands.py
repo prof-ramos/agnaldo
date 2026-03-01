@@ -1,9 +1,10 @@
 """Slash command handlers for Discord bot."""
 
+from discord import Interaction, app_commands
 from discord.ext.commands import Bot
 from loguru import logger
 
-from discord import app_commands
+from src.exceptions import DatabaseError, MemoryServiceError
 from src.knowledge.graph import KnowledgeGraph
 from src.memory.core import CoreMemory
 from src.memory.recall import RecallMemory
@@ -16,6 +17,14 @@ def _preview_with_ellipsis(text: str, max_len: int = 100) -> str:
     return f"{text[:max_len]}..."
 
 
+# Mapeamento de exceções para mensagens amigáveis em PT-BR
+_EXCEPTION_MESSAGES = {
+    DatabaseError: "Erro de banco de dados. Tente novamente em instantes.",
+    MemoryServiceError: "Erro ao acessar memória. Entre em contato com o suporte.",
+    Exception: "Ocorreu um erro interno. Tente novamente.",
+}
+
+
 async def setup_commands(bot: Bot) -> None:
     """
     Register all slash commands with the bot.
@@ -25,7 +34,7 @@ async def setup_commands(bot: Bot) -> None:
     """
 
     @bot.tree.command(name="ping", description="Check if the bot is responsive")
-    async def ping(interaction) -> None:
+    async def ping(interaction: Interaction) -> None:
         """Respond to ping command with latency."""
         if not interaction.response.is_done():
             await interaction.response.defer(ephemeral=True)
@@ -39,7 +48,7 @@ async def setup_commands(bot: Bot) -> None:
         logger.info(f"Ping command executed by {interaction.user} (Latency: {latency}ms)")
 
     @bot.tree.command(name="help", description="Show available commands")
-    async def help_command(interaction) -> None:
+    async def help_command(interaction: Interaction) -> None:
         """Display help information."""
         # Apply rate limiting
         rate_limiter = bot.get_rate_limiter()
@@ -58,7 +67,7 @@ More commands coming soon!
         logger.info(f"Help command executed by {interaction.user}")
 
     @bot.tree.command(name="status", description="Show bot status and rate limit info")
-    async def status(interaction) -> None:
+    async def status(interaction: Interaction) -> None:
         """Display bot status including rate limiter state."""
         # Apply rate limiting
         rate_limiter = bot.get_rate_limiter()
@@ -89,7 +98,7 @@ Channel tokens available: {channel_text}
         logger.info(f"Status command executed by {interaction.user}")
 
     @bot.tree.command(name="sync", description="Sync commands with Discord (Admin only)")
-    async def sync_commands(interaction) -> None:
+    async def sync_commands(interaction: Interaction) -> None:
         """Manually sync slash commands with Discord."""
         # Check for admin permissions
         permissions = getattr(interaction.user, "guild_permissions", None)
@@ -131,7 +140,7 @@ Channel tokens available: {channel_text}
         importance="Importance score from 0.0 to 1.0 (default: 0.5)",
     )
     async def memory_add(
-        interaction,
+        interaction: Interaction,
         key: str,
         value: str,
         importance: float = 0.5,
@@ -167,10 +176,16 @@ Channel tokens available: {channel_text}
             logger.info(f"Memory added by {interaction.user}: {key}={value}")
 
         except Exception as e:
-            logger.error(f"Memory add error: {e}")
-            await interaction.response.response.send_message(
-                f"Failed to store memory: {e}", ephemeral=True
+            logger.error(f"Memory add error: {e}", exc_info=True)
+            # Mensagem sanitizada para usuário (PT-BR)
+            user_message = _EXCEPTION_MESSAGES.get(
+                type(e),
+                _EXCEPTION_MESSAGES[Exception]
             )
+            if interaction.response.is_done():
+                await interaction.followup.send(user_message, ephemeral=True)
+            else:
+                await interaction.response.send_message(user_message, ephemeral=True)
 
     @memory_group.command(name="recall", description="Search your memories by semantic similarity")
     @app_commands.describe(
@@ -178,7 +193,7 @@ Channel tokens available: {channel_text}
         limit="Maximum number of results (default: 5)",
     )
     async def memory_recall(
-        interaction,
+        interaction: Interaction,
         query: str,
         limit: int = 5,
     ) -> None:
@@ -225,7 +240,8 @@ Channel tokens available: {channel_text}
     # ================================================================
 
     @bot.tree.command(name="chat", description="Chat naturalmente com o Agno")
-    async def chat_command(interaction) -> None:
+    @app_commands.describe(message="Mensagem que será enviada para o Agno")
+    async def chat_command(interaction: Interaction, message: str) -> None:
         """Process natural language message through Agno agents."""
         # Apply rate limiting
         rate_limiter = bot.get_rate_limiter()
@@ -242,7 +258,18 @@ Channel tokens available: {channel_text}
                 return
 
             # Process message through agent handler
-            response = await message_handler.process_message(interaction.message)
+            response = await message_handler.process_text(
+                message,
+                {
+                    "user_id": str(interaction.user.id),
+                    "username": interaction.user.name,
+                    "global_name": interaction.user.global_name,
+                    "channel_id": str(interaction.channel_id),
+                    "guild_id": str(interaction.guild.id) if interaction.guild else None,
+                    "guild_name": interaction.guild.name if interaction.guild else "DM",
+                    "is_dm": interaction.guild is None,
+                },
+            )
 
             # Send response or handle error
             if response:
@@ -279,7 +306,7 @@ Channel tokens available: {channel_text}
         node_type="Type/category (optional, e.g., 'language', 'API', 'concept')",
     )
     async def graph_add_node(
-        interaction,
+        interaction: Interaction,
         label: str,
         node_type: str | None = None,
     ) -> None:
@@ -317,7 +344,7 @@ Channel tokens available: {channel_text}
         weight="Strength of relationship (0.0 to 2.0, default: 1.0)",
     )
     async def graph_add_edge(
-        interaction,
+        interaction: Interaction,
         source: str,
         target: str,
         edge_type: str,
@@ -372,7 +399,7 @@ Channel tokens available: {channel_text}
         limit="Maximum results (default: 5)",
     )
     async def graph_query(
-        interaction,
+        interaction: Interaction,
         query: str,
         limit: int = 5,
     ) -> None:

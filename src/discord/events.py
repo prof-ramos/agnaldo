@@ -71,7 +71,7 @@ def setup_events(bot: Bot) -> None:
         await bot.process_commands(message)
 
         # Process natural messages through agent handler
-        if message_handler := bot.message_handler:
+        if message_handler := getattr(bot, "message_handler", None):
             try:
                 response = await message_handler.process_message(message)
                 if response:

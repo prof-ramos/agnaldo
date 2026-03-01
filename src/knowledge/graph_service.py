@@ -137,8 +137,11 @@ class GraphService:
             openai_client=openai_client,
         )
 
-        settings = get_settings()
-        self.openai = openai_client or AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        if openai_client is not None:
+            self.openai = openai_client
+        else:
+            settings = get_settings()
+            self.openai = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         self.extraction_model = "gpt-4o-mini"  # Modelo leve para extração
 
     async def extract_entities_from_text(

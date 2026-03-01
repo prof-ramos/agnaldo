@@ -395,6 +395,7 @@ async def test_orchestrator_retrieve_memory_context(mock_asyncpg_pool_with_memor
             with patch("src.memory.recall.AsyncOpenAI", return_value=mock_openai):
                 orchestrator = AgentOrchestrator()
                 orchestrator.state = AgentState.RUNNING
+                orchestrator.openai = mock_openai
 
                 context = await orchestrator._retrieve_memory_context(
                     user_id="user-123",
@@ -402,10 +403,9 @@ async def test_orchestrator_retrieve_memory_context(mock_asyncpg_pool_with_memor
                     db_pool=mock_asyncpg_pool_with_memories,
                 )
 
-                assert "recent" in context
-                assert len(context["recent"]) == 1
-                assert context["recent"][0]["content"] == "Previous conversation about AI"
-                assert context["recent"][0]["similarity"] == 0.85
+                assert len(context.recall) == 1
+                assert context.recall[0]["content"] == "Previous conversation about AI"
+                assert context.recall[0]["similarity"] == 0.85
 
 
 @pytest.mark.integration

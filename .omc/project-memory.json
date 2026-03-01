@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1771358687395,
+  "lastScanned": 1772334673201,
   "projectRoot": "/Users/gabrielramos/agnaldo",
   "techStack": {
     "languages": [
@@ -56,7 +56,7 @@
       "path": "agnaldo",
       "purpose": null,
       "fileCount": 1,
-      "lastAccessed": 1771358687381,
+      "lastAccessed": 1772334673183,
       "keyFiles": [
         "__init__.py"
       ]
@@ -65,14 +65,14 @@
       "path": "data",
       "purpose": "Data files",
       "fileCount": 0,
-      "lastAccessed": 1771358687382,
+      "lastAccessed": 1772334673184,
       "keyFiles": []
     },
     "docs": {
       "path": "docs",
       "purpose": "Documentation",
-      "fileCount": 12,
-      "lastAccessed": 1771358687383,
+      "fileCount": 16,
+      "lastAccessed": 1772334673184,
       "keyFiles": [
         "01-quickstart.md",
         "02-uso-no-discord.md",
@@ -85,7 +85,7 @@
       "path": "logs",
       "purpose": null,
       "fileCount": 1,
-      "lastAccessed": 1771358687387,
+      "lastAccessed": 1772334673184,
       "keyFiles": [
         "agnaldo.log"
       ]
@@ -94,21 +94,21 @@
       "path": "memory",
       "purpose": null,
       "fileCount": 0,
-      "lastAccessed": 1771358687388,
+      "lastAccessed": 1772334673184,
       "keyFiles": []
     },
     "reports": {
       "path": "reports",
       "purpose": null,
       "fileCount": 0,
-      "lastAccessed": 1771358687388,
+      "lastAccessed": 1772334673185,
       "keyFiles": []
     },
     "scripts": {
       "path": "scripts",
       "purpose": "Build/utility scripts",
       "fileCount": 4,
-      "lastAccessed": 1771358687389,
+      "lastAccessed": 1772334673185,
       "keyFiles": [
         "__init__.py",
         "ingest_legal_pdfs.py",
@@ -120,7 +120,7 @@
       "path": "src",
       "purpose": "Source code",
       "fileCount": 3,
-      "lastAccessed": 1771358687389,
+      "lastAccessed": 1772334673185,
       "keyFiles": [
         "__init__.py",
         "exceptions.py",
@@ -130,28 +130,28 @@
     "tests": {
       "path": "tests",
       "purpose": "Test files",
-      "fileCount": 5,
-      "lastAccessed": 1771358687390,
+      "fileCount": 7,
+      "lastAccessed": 1772334673185,
       "keyFiles": [
         "__init__.py",
         "conftest.py",
         "test_fixtures.py",
         "test_graph.py",
-        "test_memory.py"
+        "test_graph_service.py"
       ]
     },
     "reports/tests": {
       "path": "reports/tests",
       "purpose": "Test files",
       "fileCount": 0,
-      "lastAccessed": 1771358687394,
+      "lastAccessed": 1772334673186,
       "keyFiles": []
     },
     "src/config": {
       "path": "src/config",
       "purpose": "Configuration files",
       "fileCount": 2,
-      "lastAccessed": 1771358687395,
+      "lastAccessed": 1772334673186,
       "keyFiles": [
         "__init__.py",
         "settings.py"
@@ -161,7 +161,7 @@
       "path": "tests/fixtures",
       "purpose": "Test fixtures",
       "fileCount": 4,
-      "lastAccessed": 1771358687395,
+      "lastAccessed": 1772334673186,
       "keyFiles": [
         "__init__.py",
         "discord.py",
@@ -171,141 +171,111 @@
   },
   "hotPaths": [
     {
-      "path": "src/discord/handlers.py",
-      "accessCount": 31,
-      "lastAccessed": 1771360632564,
+      "path": "src/discord/commands.py",
+      "accessCount": 14,
+      "lastAccessed": 1772344465618,
       "type": "file"
     },
     {
-      "path": "src/agents/orchestrator.py",
-      "accessCount": 27,
-      "lastAccessed": 1771360697889,
+      "path": ".claude/agents/cli-ui-designer.md",
+      "accessCount": 12,
+      "lastAccessed": 1772344383729,
       "type": "file"
     },
     {
-      "path": "src/database/models.py",
-      "accessCount": 7,
-      "lastAccessed": 1771359983851,
+      "path": ".claude/agents/cli-developer.md",
+      "accessCount": 12,
+      "lastAccessed": 1772344400645,
       "type": "file"
     },
     {
-      "path": "tests/unit/test_validators/test_citation_validator.py",
+      "path": ".claude/agents/backend-developer.md",
+      "accessCount": 9,
+      "lastAccessed": 1772344400965,
+      "type": "file"
+    },
+    {
+      "path": "docs/cleancode-plan.md",
       "accessCount": 6,
-      "lastAccessed": 1771360443206,
+      "lastAccessed": 1772334764204,
       "type": "file"
     },
     {
-      "path": "",
+      "path": ".claude/agents/mcp-expert.md",
       "accessCount": 6,
-      "lastAccessed": 1771360740325,
-      "type": "directory"
+      "lastAccessed": 1772344138364,
+      "type": "file"
     },
     {
-      "path": "src/validators/citation_validator.py",
+      "path": "src/schemas/agents.py",
       "accessCount": 5,
-      "lastAccessed": 1771360707380,
+      "lastAccessed": 1772334775380,
       "type": "file"
     },
     {
-      "path": "src/discord/events.py",
+      "path": ".claude/agents/video-editor.md",
       "accessCount": 4,
-      "lastAccessed": 1771359998062,
+      "lastAccessed": 1772344240629,
       "type": "file"
     },
     {
-      "path": "src/schemas/knowledge.py",
+      "path": "tests/integration/test_discord/test_handlers.py",
       "accessCount": 4,
-      "lastAccessed": 1771360702119,
-      "type": "directory"
+      "lastAccessed": 1772344450447,
+      "type": "file"
     },
     {
-      "path": "src/agents/__init__.py",
+      "path": ".claude/agents/typescript-pro.md",
       "accessCount": 3,
-      "lastAccessed": 1771358844003,
+      "lastAccessed": 1772344239924,
       "type": "file"
     },
     {
-      "path": "src/agents/study_agent.py",
-      "accessCount": 3,
-      "lastAccessed": 1771360696791,
-      "type": "file"
-    },
-    {
-      "path": "src",
-      "accessCount": 3,
-      "lastAccessed": 1771360702475,
-      "type": "directory"
-    },
-    {
-      "path": "src/intent/router.py",
+      "path": "tests/e2e/test_discord_commands.py",
       "accessCount": 2,
-      "lastAccessed": 1771360856302,
+      "lastAccessed": 1772334686819,
       "type": "file"
     },
     {
-      "path": "src/discord",
+      "path": "tests/test_memory_isolation.py",
       "accessCount": 2,
-      "lastAccessed": 1771363165358,
-      "type": "directory"
+      "lastAccessed": 1772334704970,
+      "type": "file"
     },
     {
-      "path": "pyproject.toml",
+      "path": ".claude/agents/documentation-engineer.md",
       "accessCount": 2,
-      "lastAccessed": 1771363178574,
+      "lastAccessed": 1772344102538,
       "type": "file"
     },
     {
-      "path": "src/memory/archival.py",
-      "accessCount": 1,
-      "lastAccessed": 1771358715814,
+      "path": ".claude/agents/python-pro.md",
+      "accessCount": 2,
+      "lastAccessed": 1772344110838,
       "type": "file"
     },
     {
-      "path": "src/validators/__init__.py",
+      "path": "tests/test_graph_service.py",
       "accessCount": 1,
-      "lastAccessed": 1771358735814,
+      "lastAccessed": 1772334695805,
       "type": "file"
     },
     {
-      "path": "src/discord/bot.py",
+      "path": "src/exceptions.py",
       "accessCount": 1,
-      "lastAccessed": 1771359017039,
+      "lastAccessed": 1772334726568,
       "type": "file"
     },
     {
-      "path": "src/discord/rate_limiter.py",
+      "path": "src/memory/core.py",
       "accessCount": 1,
-      "lastAccessed": 1771359439070,
+      "lastAccessed": 1772334726589,
       "type": "file"
     },
     {
-      "path": "src/knowledge/legal_pdf_ingestor.py",
+      "path": "CHANGELOG.md",
       "accessCount": 1,
-      "lastAccessed": 1771359871713,
-      "type": "file"
-    },
-    {
-      "path": "src/database/migrations/versions/001_initial.py",
-      "accessCount": 1,
-      "lastAccessed": 1771359959224,
-      "type": "file"
-    },
-    {
-      "path": "tests/unit/test_validators/__init__.py",
-      "accessCount": 1,
-      "lastAccessed": 1771360390870,
-      "type": "file"
-    },
-    {
-      "path": "PRD.md",
-      "accessCount": 1,
-      "lastAccessed": 1771360691596,
-      "type": "file"
-    },
-    {
-      "path": "ARCHITECTURE.md",
-      "accessCount": 1,
-      "lastAccessed": 1771360701996,
+      "lastAccessed": 1772344352018,
       "type": "file"
     }
   ],

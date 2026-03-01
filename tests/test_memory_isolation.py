@@ -18,6 +18,7 @@ from src.memory.isolation import (
     set_user_context,
     validate_sql_query,
 )
+from tests.fixtures import assert_has_violation
 
 
 class TestMemoryIsolationGuard:
@@ -93,7 +94,7 @@ class TestMemoryIsolationGuard:
         )
         assert result is False
         violations = guard.get_isolation_violations()
-        assert any("ACESSO NEGADO" in str(v) for v in violations)
+        assert_has_violation(violations, "test_access", "core")
 
     def test_validate_query_with_user_id(self):
         """Query com WHERE user_id deve passar."""
@@ -116,7 +117,7 @@ class TestMemoryIsolationGuard:
         result = guard.validate_query(query, "user123", "test_query")
         assert result == query
         violations = guard.get_isolation_violations()
-        assert any("filtro user_id" in str(v) for v in violations)
+        assert_has_violation(violations, "test_query", "query_validation")
 
     def test_audit_logs_are_recorded(self):
         """Logs de auditoria são registrados."""

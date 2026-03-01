@@ -22,6 +22,8 @@ from loguru import logger
 from src.config.settings import get_settings
 from src.database.supabase import get_supabase_client
 from src.discord.bot import create_bot
+from src.discord.handlers import get_message_handler
+from src.intent.classifier import IntentClassifier
 from src.utils.logger import setup_logging
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -182,7 +184,18 @@ async def main() -> int:
     # Step 3: Configure and start bot
     try:
         logger.info("Configuring bot instance...")
-        bot = await create_bot(db_pool)
+        bot = create_bot()
+        bot.db_pool = db_pool
+        bot.personality = create_soul_personality()
+
+        logger.info("Initializing message handler...")
+        intent_classifier = IntentClassifier(model_name=settings.SENTENCE_TRANSFORMER_MODEL)
+        message_handler = await get_message_handler(
+            bot=bot,
+            intent_classifier=intent_classifier,
+            db_pool=db_pool,
+        )
+        bot.set_message_handler(message_handler)
         logger.info("Bot instance configured successfully")
 
         logger.info("Starting bot connection to Discord...")

@@ -21,7 +21,9 @@ import pytest
 @pytest.mark.asyncio
 async def test_memory_add_command_flow(bot_with_commands, mock_discord_interaction):
     """Teste E2E do fluxo de adicionar memória via comando /memory add."""
-    bot, mock_pool, mock_conn = bot_with_commands
+    ctx = bot_with_commands
+    bot = ctx.bot
+    mock_conn = ctx.conn
 
     # Configurar mocks do banco para a operação de add
     mock_conn.fetch.return_value = []  # Nenhuma memória existente com essa chave
@@ -49,7 +51,9 @@ async def test_memory_add_command_flow(bot_with_commands, mock_discord_interacti
 @pytest.mark.asyncio
 async def test_memory_add_invalid_importance_flow(bot_with_commands, mock_discord_interaction):
     """Teste E2E do fluxo de adicionar memória com importância inválida."""
-    bot, mock_pool, mock_conn = bot_with_commands
+    ctx = bot_with_commands
+    bot = ctx.bot
+    mock_conn = ctx.conn
 
     # Obter o comando de adicionar memória
     memory_add_cmd = bot.tree.get_command("memory add")
@@ -76,7 +80,9 @@ async def test_memory_search_command_flow(
     mock_openai_graph, mock_openai_recall, bot_with_commands, mock_discord_interaction
 ):
     """Teste E2E do fluxo de buscar memória via comando /memory recall."""
-    bot, mock_pool, mock_conn = bot_with_commands
+    ctx = bot_with_commands
+    bot = ctx.bot
+    mock_conn = ctx.conn
 
     # Configurar mocks para busca semântica
     from datetime import datetime, timezone
@@ -136,7 +142,9 @@ async def test_memory_search_empty_results_flow(
     mock_openai_graph, mock_openai_recall, bot_with_commands, mock_discord_interaction
 ):
     """Teste E2E do fluxo de busca sem resultados."""
-    bot, mock_pool, mock_conn = bot_with_commands
+    ctx = bot_with_commands
+    bot = ctx.bot
+    mock_conn = ctx.conn
 
     # Configurar mock para não retornar resultados
     mock_conn.fetch.return_value = []
@@ -174,7 +182,9 @@ async def test_graph_add_node_command_flow(
     mock_openai_graph, mock_openai_recall, bot_with_commands, mock_discord_interaction
 ):
     """Teste E2E do fluxo de adicionar nó ao grafo via /graph add_node."""
-    bot, mock_pool, mock_conn = bot_with_commands
+    ctx = bot_with_commands
+    bot = ctx.bot
+    mock_conn = ctx.conn
 
     # Configurar mocks
     mock_conn.fetchval.return_value = "node-uuid-123"
@@ -234,7 +244,9 @@ async def test_graph_add_edge_command_flow(
     mock_openai_graph, mock_openai_recall, bot_with_commands, mock_discord_interaction
 ):
     """Teste E2E do fluxo de adicionar aresta ao grafo via /graph add_edge."""
-    bot, mock_pool, mock_conn = bot_with_commands
+    ctx = bot_with_commands
+    bot = ctx.bot
+    mock_conn = ctx.conn
 
     # Configurar mocks para busca de nós (não encontra) -> criação de nós -> criação de aresta
     mock_conn.fetch.return_value = []  # search_nodes não encontra nada inicialmente
@@ -315,7 +327,9 @@ async def test_graph_query_command_flow(
     mock_openai_graph, mock_openai_recall, bot_with_commands, mock_discord_interaction
 ):
     """Teste E2E do fluxo de query no grafo via /graph query."""
-    bot, mock_pool, mock_conn = bot_with_commands
+    ctx = bot_with_commands
+    bot = ctx.bot
+    mock_conn = ctx.conn
 
     # Configurar mocks para busca de nós
     mock_conn.fetch.return_value = [
@@ -381,7 +395,9 @@ async def test_graph_query_command_flow(
 @pytest.mark.asyncio
 async def test_help_command_flow(bot_with_commands, mock_discord_interaction):
     """Teste E2E do fluxo do comando /help."""
-    bot, mock_pool, mock_conn = bot_with_commands
+    ctx = bot_with_commands
+    bot = ctx.bot
+    mock_conn = ctx.conn
 
     # Obter o comando help
     help_cmd = bot.tree.get_command("help")
@@ -405,7 +421,9 @@ async def test_help_command_flow(bot_with_commands, mock_discord_interaction):
 @pytest.mark.asyncio
 async def test_ping_command_flow(bot_with_commands, mock_discord_interaction):
     """Teste E2E do fluxo do comando /ping."""
-    bot, mock_pool, mock_conn = bot_with_commands
+    ctx = bot_with_commands
+    bot = ctx.bot
+    mock_conn = ctx.conn
 
     # Obter o comando ping
     ping_cmd = bot.tree.get_command("ping")
@@ -428,7 +446,9 @@ async def test_ping_command_flow(bot_with_commands, mock_discord_interaction):
 @pytest.mark.asyncio
 async def test_status_command_flow(bot_with_commands, mock_discord_interaction):
     """Teste E2E do fluxo do comando /status."""
-    bot, mock_pool, mock_conn = bot_with_commands
+    ctx = bot_with_commands
+    bot = ctx.bot
+    mock_conn = ctx.conn
 
     # Obter o comando status
     status_cmd = bot.tree.get_command("status")
@@ -457,7 +477,9 @@ async def test_status_command_flow(bot_with_commands, mock_discord_interaction):
 @patch("src.knowledge.graph.AsyncOpenAI")
 async def test_multi_command_session(mock_openai_graph, mock_openai_recall, bot_with_commands):
     """Teste E2E de múltiplos comandos em sequência simulando uma sessão."""
-    bot, mock_pool, mock_conn = bot_with_commands
+    ctx = bot_with_commands
+    bot = ctx.bot
+    mock_conn = ctx.conn
 
     # Configurar mock OpenAI recall e graph para a sessão
     mock_openai_response = MagicMock()
@@ -548,7 +570,9 @@ async def test_multi_command_session(mock_openai_graph, mock_openai_recall, bot_
 @pytest.mark.asyncio
 async def test_command_without_database_flow(bot_with_commands, mock_discord_interaction):
     """Teste E2E do comportamento quando banco de dados não está disponível."""
-    bot, mock_pool, mock_conn = bot_with_commands
+    ctx = bot_with_commands
+    bot = ctx.bot
+    mock_conn = ctx.conn
 
     # Remover o pool do bot (simular DB não disponível)
     bot.db_pool = None
@@ -570,7 +594,9 @@ async def test_command_without_database_flow(bot_with_commands, mock_discord_int
 @pytest.mark.asyncio
 async def test_command_with_database_error_flow(bot_with_commands, mock_discord_interaction):
     """Teste E2E do comportamento quando ocorre erro no banco de dados."""
-    bot, mock_pool, mock_conn = bot_with_commands
+    ctx = bot_with_commands
+    bot = ctx.bot
+    mock_conn = ctx.conn
 
     # Configurar mock para lançar exceção
     mock_conn.fetch.side_effect = Exception("Database connection lost")
@@ -598,7 +624,9 @@ async def test_command_with_database_error_flow(bot_with_commands, mock_discord_
 @pytest.mark.asyncio
 async def test_rate_limiting_on_commands(bot_with_commands):
     """Teste E2E de que rate limiter é aplicado aos comandos."""
-    bot, mock_pool, mock_conn = bot_with_commands
+    ctx = bot_with_commands
+    bot = ctx.bot
+    mock_conn = ctx.conn
 
     # Criar múltiplas interações no mesmo canal
     interactions = []
@@ -637,7 +665,9 @@ async def test_rate_limiting_on_commands(bot_with_commands):
 @pytest.mark.asyncio
 async def test_sync_command_admin_flow(bot_with_commands, mock_discord_interaction):
     """Teste E2E do comando /sync com permissões de admin."""
-    bot, mock_pool, mock_conn = bot_with_commands
+    ctx = bot_with_commands
+    bot = ctx.bot
+    mock_conn = ctx.conn
 
     # Configurar usuário como admin
     mock_discord_interaction.user.guild_permissions.administrator = True
@@ -660,7 +690,9 @@ async def test_sync_command_admin_flow(bot_with_commands, mock_discord_interacti
 @pytest.mark.asyncio
 async def test_sync_command_non_admin_flow(bot_with_commands, mock_discord_interaction):
     """Teste E2E do comando /sync sem permissões de admin."""
-    bot, mock_pool, mock_conn = bot_with_commands
+    ctx = bot_with_commands
+    bot = ctx.bot
+    mock_conn = ctx.conn
 
     # Configurar usuário sem permissões de admin
     mock_discord_interaction.user.guild_permissions = None

@@ -1,8 +1,11 @@
 """Testes para o GraphService."""
 
+from datetime import datetime, timezone
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from src.exceptions import DatabaseError
 from src.knowledge.graph_service import (
     EntityType,
     ExtractedEntity,
@@ -10,6 +13,9 @@ from src.knowledge.graph_service import (
     GraphService,
     RelationType,
 )
+
+# Constante fixa para garantir determinismo nos testes
+FIXED_DATETIME = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 
 class TestExtractedEntity:
@@ -86,7 +92,9 @@ class TestGraphService:
     @pytest.fixture
     def mock_db_pool(self):
         """Mock do pool de banco de dados."""
-        pool = AsyncMock()
+        pool = MagicMock()
+        acquire_cm = AsyncMock()
+        pool.acquire.return_value = acquire_cm
         return pool
 
     @pytest.fixture
@@ -207,7 +215,7 @@ class TestGraphService:
                         "label": "Test",
                         "node_type": "concept",
                         "properties": {},
-                        "created_at": None,
+                        "created_at": FIXED_DATETIME,
                     }
                 ],
                 # Edges
@@ -268,7 +276,7 @@ class TestGraphService:
 
         mock_conn.fetch = AsyncMock(return_value=[])
 
-        with pytest.raises(ValueError):
+        with pytest.raises(DatabaseError):
             await graph_service.export_graph(format="invalid")
 
     @pytest.mark.asyncio
